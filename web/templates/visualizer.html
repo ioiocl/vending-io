@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music-IO Visualizer</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 3em;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 20px rgba(255, 255, 255, 0.5); }
+            to { text-shadow: 0 0 40px rgba(255, 255, 255, 0.8); }
+        }
+
+        .main-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .pulse-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pulse-circle {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%);
+            position: absolute;
+            animation: pulse 1s ease-out;
+            opacity: 0;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+
+        .distance-display {
+            font-size: 5em;
+            font-weight: bold;
+            z-index: 10;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+        }
+
+        .distance-unit {
+            font-size: 0.4em;
+            opacity: 0.8;
+        }
+
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .info-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .info-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 10px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-weight: bold;
+        }
+
+        .frequency-bar {
+            width: 100%;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .frequency-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88 0%, #00ccff 100%);
+            transition: width 0.3s ease;
+            border-radius: 15px;
+        }
+
+        .joystick-status {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .joystick-connected {
+            color: #00ff88;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+
+        .joystick-disconnected {
+            color: #ff4444;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+
+        .history-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        .connected {
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+        }
+
+        .disconnected {
+            background: rgba(255, 68, 68, 0.3);
+            border: 2px solid #ff4444;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        ⚫ Disconnected
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🎵 Music-IO Visualizer</h1>
+        </header>
+
+        <div class="main-content">
+            <!-- Pulse Visualization -->
+            <div class="pulse-container" id="pulseContainer">
+                <div class="distance-display" id="distanceDisplay">
+                    --<span class="distance-unit">cm</span>
+                </div>
+            </div>
+
+            <!-- Info Panel -->
+            <div class="info-panel">
+                <!-- Current Stats -->
+                <div class="info-card">
+                    <h3>📊 Current Stats</h3>
+                    <div class="stat">
+                        <span class="stat-label">Frequency:</span>
+                        <span class="stat-value" id="frequency">-- Hz</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Amplitude:</span>
+                        <span class="stat-value" id="amplitude">--</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Duration:</span>
+                        <span class="stat-value" id="duration">-- s</span>
+                    </div>
+                    <div class="frequency-bar">
+                        <div class="frequency-fill" id="frequencyBar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Joystick Status -->
+                <div class="info-card joystick-status">
+                    <h3>🎮 Joystick</h3>
+                    <div id="joystickStatus" class="joystick-disconnected">
+                        No joystick detected
+                    </div>
+                    <div id="joystickInfo" style="margin-top: 10px; font-size: 0.9em;"></div>
+                </div>
+
+                <!-- Event History -->
+                <div class="info-card">
+                    <h3>📜 Recent Events</h3>
+                    <div class="history-container" id="historyContainer">
+                        <div class="history-item">Waiting for events...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+
+        // State
+        let joystickConnected = false;
+        let gamepadIndex = null;
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').className = 'connection-status connected';
+            document.getElementById('connectionStatus').textContent = '🟢 Connected';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').className = 'connection-status disconnected';
+            document.getElementById('connectionStatus').textContent = '⚫ Disconnected';
+        });
+
+        // Proximity pulse event
+        socket.on('proximity_pulse', (data) => {
+            console.log('Proximity pulse:', data);
+            
+            // Update distance display
+            document.getElementById('distanceDisplay').innerHTML = 
+                `${data.distance.toFixed(1)}<span class="distance-unit">cm</span>`;
+            
+            // Create pulse effect
+            createPulse(data.pulse_intensity);
+            
+            // Add to history
+            addToHistory(`📏 Distance: ${data.distance.toFixed(1)}cm`);
+        });
+
+        // Sound event
+        socket.on('sound_event', (data) => {
+            console.log('Sound event:', data);
+            
+            // Update stats
+            document.getElementById('frequency').textContent = `${data.frequency.toFixed(0)} Hz`;
+            document.getElementById('amplitude').textContent = data.amplitude.toFixed(2);
+            document.getElementById('duration').textContent = `${data.duration.toFixed(2)} s`;
+            
+            // Update frequency bar (normalize to 0-2000 Hz range)
+            const freqPercent = Math.min((data.frequency / 2000) * 100, 100);
+            document.getElementById('frequencyBar').style.width = `${freqPercent}%`;
+            
+            // Add to history
+            addToHistory(`🎵 Sound: ${data.frequency.toFixed(0)}Hz`);
+        });
+
+        // Create pulse effect
+        function createPulse(intensity) {
+            const container = document.getElementById('pulseContainer');
+            const pulse = document.createElement('div');
+            pulse.className = 'pulse-circle';
+            
+            // Adjust size and color based on intensity
+            const size = 200 + (intensity * 200);
+            pulse.style.width = `${size}px`;
+            pulse.style.height = `${size}px`;
+            
+            // Color gradient based on intensity
+            const hue = 180 + (intensity * 60); // Blue to cyan
+            pulse.style.background = `radial-gradient(circle, hsla(${hue}, 100%, 70%, 0.8) 0%, hsla(${hue}, 100%, 70%, 0) 70%)`;
+            
+            container.appendChild(pulse);
+            
+            // Remove after animation
+            setTimeout(() => {
+                container.removeChild(pulse);
+            }, 1000);
+        }
+
+        // Add event to history
+        function addToHistory(text) {
+            const container = document.getElementById('historyContainer');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.textContent = `${new Date().toLocaleTimeString()} - ${text}`;
+            
+            // Add to top
+            if (container.firstChild.textContent === 'Waiting for events...') {
+                container.innerHTML = '';
+            }
+            container.insertBefore(item, container.firstChild);
+            
+            // Keep only last 10 items
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Gamepad/Joystick support
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('Gamepad connected:', e.gamepad);
+            joystickConnected = true;
+            gamepadIndex = e.gamepad.index;
+            
+            document.getElementById('joystickStatus').className = 'joystick-connected';
+            document.getElementById('joystickStatus').textContent = '✅ Joystick Connected';
+            document.getElementById('joystickInfo').textContent = e.gamepad.id;
+            
+            // Start polling gamepad
+            requestAnimationFrame(pollGamepad);
+        });
+
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('Gamepad disconnected');
+            joystickConnected = false;
+            gamepadIndex = null;
+            
+            document.getElementById('joystickStatus').className = 'joystick-disconnected';
+            document.getElementById('joystickStatus').textContent = 'No joystick detected';
+            document.getElementById('joystickInfo').textContent = '';
+        });
+
+        // Poll gamepad state
+        function pollGamepad() {
+            if (!joystickConnected) return;
+            
+            const gamepads = navigator.getGamepads();
+            const gamepad = gamepads[gamepadIndex];
+            
+            if (gamepad) {
+                // Read axes (joystick position)
+                const axes = {
+                    x: gamepad.axes[0],
+                    y: gamepad.axes[1]
+                };
+                
+                // Read buttons
+                const buttons = gamepad.buttons.map((b, i) => ({
+                    index: i,
+                    pressed: b.pressed,
+                    value: b.value
+                })).filter(b => b.pressed);
+                
+                // Send to server if there's input
+                if (Math.abs(axes.x) > 0.1 || Math.abs(axes.y) > 0.1 || buttons.length > 0) {
+                    socket.emit('joystick_input', {
+                        axes: axes,
+                        buttons: buttons,
+                        timestamp: Date.now()
+                    });
+                }
+            }
+            
+            requestAnimationFrame(pollGamepad);
+        }
+
+        // Listen for joystick events from other clients
+        socket.on('joystick_event', (data) => {
+            console.log('Joystick event from another client:', data);
+            // You can visualize this or trigger actions
+        });
+
+        // Keyboard controls (for testing without joystick)
+        document.addEventListener('keydown', (e) => {
+            const keyMap = {
+                'ArrowUp': { axes: { x: 0, y: -1 }, button: 'up' },
+                'ArrowDown': { axes: { x: 0, y: 1 }, button: 'down' },
+                'ArrowLeft': { axes: { x: -1, y: 0 }, button: 'left' },
+                'ArrowRight': { axes: { x: 1, y: 0 }, button: 'right' },
+                ' ': { axes: { x: 0, y: 0 }, button: 'jump' }
+            };
+            
+            if (keyMap[e.key]) {
+                socket.emit('joystick_input', {
+                    axes: keyMap[e.key].axes,
+                    buttons: [{ index: 0, pressed: true, name: keyMap[e.key].button }],
+                    timestamp: Date.now(),
+                    source: 'keyboard'
+                });
+                
+                addToHistory(`⌨️ Key: ${keyMap[e.key].button}`);
+            }
+        });
+    </script>
+</body>
+</html>

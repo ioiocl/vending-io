@@ -1,0 +1,20 @@
+# IOIO Payment System Requirements
+# Solana blockchain integration for game payments
+
+# Web framework
+flask>=2.3.0
+flask-socketio>=5.3.0
+
+# Solana blockchain
+solders>=0.18.0
+solana>=0.30.0
+
+# QR code generation
+qrcode>=7.4.2
+Pillow>=10.0.0
+
+# Async support
+aiohttp>=3.9.0
+
+# Base58 encoding
+base58>=2.1.1

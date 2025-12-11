@@ -1,0 +1,202 @@
+MUSIC-IO HEXAGONAL ARCHITECTURE
+================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         EXTERNAL WORLD                                   │
+│                                                                          │
+│  ┌──────────────┐                                    ┌──────────────┐  │
+│  │   Arduino    │                                    │   Speakers   │  │
+│  │   HC-SR04    │                                    │   (Audio)    │  │
+│  │   Sensor     │                                    │              │  │
+│  └──────┬───────┘                                    └───────▲──────┘  │
+│         │                                                    │          │
+│         │ Serial/USB                                         │ Audio    │
+│         │                                                    │          │
+└─────────┼────────────────────────────────────────────────────┼──────────┘
+          │                                                    │
+          │                                                    │
+┌─────────┼────────────────────────────────────────────────────┼──────────┐
+│         │              ADAPTER LAYER                         │          │
+│         │                                                    │          │
+│  ┌──────▼───────┐                                    ┌───────┴──────┐  │
+│  │   Arduino    │                                    │ Local Audio  │  │
+│  │   Adapter    │                                    │   Adapter    │  │
+│  │              │                                    │              │  │
+│  │ - Serial I/O │                                    │ - PyAudio    │  │
+│  │ - Threading  │                                    │ - NumPy      │  │
+│  │ - JSON Parse │                                    │ - Synthesis  │  │
+│  └──────┬───────┘                                    └───────▲──────┘  │
+│         │                                                    │          │
+│         │ implements                                         │          │
+│         │                                                    │          │
+└─────────┼────────────────────────────────────────────────────┼──────────┘
+          │                                                    │
+          │                                                    │
+┌─────────┼────────────────────────────────────────────────────┼──────────┐
+│         │                PORT LAYER                          │          │
+│         │              (Interfaces)                          │          │
+│  ┌──────▼───────┐                                    ┌───────┴──────┐  │
+│  │  InputPort   │                                    │  OutputPort  │  │
+│  │              │                                    │              │  │
+│  │ - start()    │                                    │ - init()     │  │
+│  │ - stop()     │                                    │ - play()     │  │
+│  │ - callback() │                                    │ - stop()     │  │
+│  └──────┬───────┘                                    └───────▲──────┘  │
+│         │                                                    │          │
+└─────────┼────────────────────────────────────────────────────┼──────────┘
+          │                                                    │
+          │ ProximityEvent                                     │ SoundEvent
+          │                                                    │
+┌─────────┼────────────────────────────────────────────────────┼──────────┐
+│         │                CORE DOMAIN                         │          │
+│         │            (Business Logic)                        │          │
+│         │                                                    │          │
+│  ┌──────▼────────────────────────────────────────────────────┴──────┐  │
+│  │                                                                   │  │
+│  │                    STATE MACHINE ORCHESTRATOR                     │  │
+│  │                                                                   │  │
+│  │  ┌──────┐    proximity    ┌───────────┐    process              │  │
+│  │  │ IDLE │ ──────────────> │ LISTENING │ ──────────┐             │  │
+│  │  └──────┘                 └───────────┘            │             │  │
+│  │     ▲                                               │             │  │
+│  │     │                                               ▼             │  │
+│  │     │                                        ┌────────────┐      │  │
+│  │     │                                        │ PROCESSING │      │  │
+│  │     │                                        └─────┬──────┘      │  │
+│  │     │                                              │             │  │
+│  │     │                                              │ generate    │  │
+│  │     │                                              ▼             │  │
+│  │     │         ready                         ┌─────────┐         │  │
+│  │     └───────────────────────────────────────│ PLAYING │         │  │
+│  │                                             └─────────┘         │  │
+│  │                                                                   │  │
+│  │  BUSINESS LOGIC:                                                 │  │
+│  │  • Distance 0-10cm   → Frequency 800-1200 Hz (High)             │  │
+│  │  • Distance 10-30cm  → Frequency 400-800 Hz  (Mid)              │  │
+│  │  • Distance 30-50cm  → Frequency 200-400 Hz  (Low)              │  │
+│  │  • Distance >50cm    → No sound                                  │  │
+│  │                                                                   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                        DOMAIN EVENTS                              │  │
+│  │                                                                   │  │
+│  │  • ProximityEvent  - Sensor detected distance                    │  │
+│  │  • SoundEvent      - Sound to be played                          │  │
+│  │  • StateChangeEvent - State machine transition                   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+          ▲                                                    ▲
+          │                                                    │
+┌─────────┼────────────────────────────────────────────────────┼──────────┐
+│         │            APPLICATION LAYER                       │          │
+│         │                                                    │          │
+│  ┌──────┴────────────────────────────────────────────────────┴──────┐  │
+│  │                  MusicMachineApplication                          │  │
+│  │                                                                   │  │
+│  │  • Dependency Injection                                           │  │
+│  │  • Lifecycle Management (start/stop)                              │  │
+│  │  • Event Routing                                                  │  │
+│  │  • Wires Core + Adapters together                                │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+
+
+DATA FLOW EXAMPLE:
+==================
+
+1. User moves hand near sensor (5cm away)
+   ↓
+2. Arduino HC-SR04 measures distance
+   ↓
+3. Arduino sends: {"distance": 5.0}
+   ↓
+4. ArduinoAdapter receives serial data
+   ↓
+5. ArduinoAdapter creates ProximityEvent(distance=5.0)
+   ↓
+6. Application routes event to State Machine
+   ↓
+7. State Machine transitions: IDLE → LISTENING → PROCESSING
+   ↓
+8. State Machine applies business logic:
+   - 5cm is in range 0-10cm
+   - Maps to frequency: 1200 - (5 * 40) = 1000 Hz
+   - Sets amplitude: 0.8 (loud)
+   - Sets duration: 0.1 + (5/100) = 0.15 seconds
+   ↓
+9. State Machine creates SoundEvent(freq=1000, dur=0.15, amp=0.8)
+   ↓
+10. State Machine transitions: PROCESSING → PLAYING
+   ↓
+11. Application routes SoundEvent to LocalAudioAdapter
+   ↓
+12. LocalAudioAdapter generates sine wave:
+    - Creates numpy array of samples
+    - Applies envelope (fade in/out)
+    - Converts to audio format
+   ↓
+13. LocalAudioAdapter plays through PyAudio
+   ↓
+14. User hears 1000 Hz tone for 0.15 seconds
+   ↓
+15. State Machine transitions: PLAYING → LISTENING (ready for next input)
+
+
+EXTENSIBILITY:
+==============
+
+To add new INPUT (e.g., MIDI controller):
+┌──────────────┐
+│ MIDI Device  │
+└──────┬───────┘
+       │
+┌──────▼───────┐
+│ MIDI Adapter │ ─── implements ──> InputPort ──> State Machine
+└──────────────┘
+
+To add new OUTPUT (e.g., Ableton Live):
+                                        ┌──────────────┐
+State Machine ──> OutputPort ─── implements ──> │ Ableton      │
+                                        │ Adapter (OSC)│
+                                        └──────┬───────┘
+                                               │
+                                        ┌──────▼───────┐
+                                        │ Ableton Live │
+                                        └──────────────┘
+
+FUTURE ARCHITECTURE:
+====================
+
+┌─────────────────────────────────────────────────────────────────┐
+│                         INPUT ADAPTERS                          │
+│                                                                 │
+│  Arduino │ MIDI │ Web API │ Blockchain │ OSC │ Keyboard │ ... │
+└────┬─────┴──┬───┴────┬────┴─────┬──────┴──┬──┴────┬──────┴─────┘
+     │        │         │          │         │       │
+     └────────┴─────────┴──────────┴─────────┴───────┘
+                         │
+                    ┌────▼────┐
+                    │  PORTS  │
+                    └────┬────┘
+                         │
+                  ┌──────▼──────┐
+                  │    CORE     │
+                  │    STATE    │
+                  │   MACHINE   │
+                  └──────┬──────┘
+                         │
+                    ┌────▼────┐
+                    │  PORTS  │
+                    └────┬────┘
+     ┌────────┬─────────┬──────────┬─────────┬───────┐
+     │        │         │          │         │       │
+┌────▼─────┬──▼───┬────▼────┬─────▼──────┬──▼──┬────▼──────┬─────┐
+│          │      │         │            │     │           │     │
+│ Local    │ Able-│ Super-  │ Visual     │ MIDI│ Network   │ ... │
+│ Audio    │ ton  │ Collider│ Server     │ Out │ Streaming │     │
+│          │      │         │            │     │           │     │
+└──────────┴──────┴─────────┴────────────┴─────┴───────────┴─────┘
+                    OUTPUT ADAPTERS

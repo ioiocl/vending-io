@@ -1,0 +1,2298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music-IO Pulse Jump Game</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(180deg, #0f3460 0%, #16213e 100%);
+            border: 3px solid #00ff88;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 3em;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+            margin-bottom: 10px;
+        }
+
+        .score-board {
+            display: flex;
+            gap: 40px;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+        }
+
+        .score-item {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 30px;
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+        }
+
+        .score-label {
+            opacity: 0.8;
+            font-size: 0.7em;
+        }
+
+        .score-value {
+            font-weight: bold;
+            color: #00ff88;
+            font-size: 1.5em;
+        }
+
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            border: 3px solid #ff4444;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+        }
+
+        .game-over h2 {
+            color: #ff4444;
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        .game-over button {
+            background: #00ff88;
+            color: #1a1a2e;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .game-over button:hover {
+            background: #00cc70;
+            transform: scale(1.05);
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .connected {
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+        }
+
+        .disconnected {
+            background: rgba(255, 68, 68, 0.3);
+            border: 2px solid #ff4444;
+        }
+
+        .joystick-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 15px;
+            border: 2px solid #00ff88;
+        }
+
+        .joystick-connected {
+            color: #00ff88;
+        }
+
+        .joystick-disconnected {
+            color: #ff4444;
+        }
+
+        #webcamVideo {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border: 3px solid #00ff88;
+            border-radius: 10px;
+            transform: scaleX(-1);
+            display: none;
+        }
+
+        #webcamVideo.active {
+            display: block;
+        }
+
+        .webcam-status {
+            position: absolute;
+            bottom: 180px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            font-size: 0.9em;
+        }
+
+        /* Proximity invite text - "Ven a Jugar" */
+        .invite-text {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(0, 255, 136, 0.9), rgba(0, 200, 100, 0.9));
+            color: #1a1a2e;
+            padding: 20px 60px;
+            border-radius: 50px;
+            font-size: 2.5em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.6), 0 10px 30px rgba(0, 0, 0, 0.3);
+            z-index: 2000;
+            display: none;
+            animation: invitePulse 1.5s ease-in-out infinite;
+            border: 3px solid #ffffff;
+        }
+
+        .invite-text.visible {
+            display: block;
+        }
+
+        @keyframes invitePulse {
+            0%, 100% {
+                transform: translateX(-50%) scale(1);
+                box-shadow: 0 0 40px rgba(0, 255, 136, 0.6), 0 10px 30px rgba(0, 0, 0, 0.3);
+            }
+            50% {
+                transform: translateX(-50%) scale(1.05);
+                box-shadow: 0 0 60px rgba(0, 255, 136, 0.8), 0 15px 40px rgba(0, 0, 0, 0.4);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        ⚫ Disconnected
+    </div>
+
+    <div class="joystick-indicator">
+        <div id="joystickStatus" class="joystick-disconnected">
+            🎮 No Joystick
+        </div>
+    </div>
+
+    <div class="webcam-status" id="webcamStatus">
+        📸 Webcam: Inactive
+    </div>
+
+    <video id="webcamVideo" autoplay playsinline></video>
+
+    <!-- Proximity invite text - shown when user is within 50cm -->
+    <div class="invite-text" id="inviteText">🎮 ¡Ven a Jugar! 🎮</div>
+
+
+    <div class="game-over" id="gameOver">
+        <h2>💀 GAME OVER</h2>
+        <p style="font-size: 1.5em; margin: 20px 0;">Final Score: <span id="finalScore">0</span></p>
+        <p style="font-size: 1.2em; margin: 10px 0;">Pulses Jumped: <span id="finalPulses">0</span></p>
+        <p style="font-size: 1em; color: #ff4444; margin: 10px 0;">💀 Killed by enemy!</p>
+        <button onclick="restartGame()">🔄 Play Again</button>
+    </div>
+
+    <div class="game-over" id="gameWon" style="border-color: #00ff88;">
+        <h2 style="color: #00ff88;">🏆 VICTORY!</h2>
+        <p style="font-size: 2em; margin: 20px 0;">🎉 CONGRATULATIONS! 🎉</p>
+        <p style="font-size: 1.5em; margin: 10px 0;">You survived <strong>60 seconds!</strong></p>
+        <p style="font-size: 1.2em; margin: 10px 0;">Final Score: <span id="winScore">0</span></p>
+        <p style="font-size: 1em; margin: 10px 0;">Pulses Jumped: <span id="winPulses">0</span></p>
+        <p style="font-size: 1em; margin: 10px 0;">Items Collected: <span id="winItems">0</span></p>
+        <button onclick="restartGame()" style="background: #00ff88;">🎉 Play Again</button>
+    </div>
+
+    <div class="game-container">
+        <div class="game-header">
+            <h1>🎵 Pulse Jump Game</h1>
+            <div class="score-board">
+                <div class="score-item">
+                    <div class="score-label">SCORE</div>
+                    <div class="score-value" id="score">0</div>
+                </div>
+                <div class="score-item">
+                    <div class="score-label">PULSES</div>
+                    <div class="score-value" id="pulses">0</div>
+                </div>
+                <div class="score-item">
+                    <div class="score-label">COMBO</div>
+                    <div class="score-value" id="combo">0</div>
+                </div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="1200" height="600"></canvas>
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        // Listen for proximity invite from Arduino (within 50cm)
+        socket.on('proximity_invite', function(data) {
+            console.log('👋 Proximity invite event:', data);
+            const inviteText = document.getElementById('inviteText');
+            
+            if (data.invite && data.invite.length > 0) {
+                // Show invite text - user is close
+                inviteText.textContent = '🎮 ¡' + data.invite + '! 🎮';
+                inviteText.classList.add('visible');
+                console.log('✅ Showing invite text:', data.invite);
+            } else {
+                // Hide invite text - user moved away
+                inviteText.classList.remove('visible');
+                console.log('❌ Hiding invite text');
+            }
+        });
+        
+        // Listen for button press from Arduino to start game
+        socket.on('game_start_trigger', function(data) {
+            console.log('🎮 BUTTON PRESSED ON ARDUINO! Starting game...', data);
+            
+            // Visual feedback
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.textContent = '🎮 BUTTON PRESSED - GAME STARTING!';
+            statusDiv.style.background = 'rgba(0, 255, 136, 0.3)';
+            
+            // Flash the canvas border
+            if (typeof canvas !== 'undefined') {
+                canvas.style.borderColor = '#ffff00';
+                setTimeout(() => {
+                    canvas.style.borderColor = '#00ff88';
+                }, 500);
+            }
+            
+            // Hide invite text when game starts
+            const inviteText = document.getElementById('inviteText');
+            if (inviteText) {
+                inviteText.classList.remove('visible');
+            }
+            
+            // Handle game start based on current state
+            if (typeof game !== 'undefined') {
+                if (game.gameOver || game.gameWon) {
+                    // Game ended - restart it
+                    console.log('🔄 Restarting game after game over/win');
+                    if (typeof restartGame === 'function') {
+                        restartGame();
+                    }
+                } else if (!game.gameStarted) {
+                    // First time starting the game
+                    game.gameStarted = true;
+                    game.startTime = Date.now();
+                    game.player.flying = true;
+                    game.player.velocityY = 0;
+                    game.player.velocityX = 0;
+                    console.log('✅ Game started by Arduino button!');
+                }
+            }
+            
+            // Reset status message after 2 seconds
+            setTimeout(() => {
+                statusDiv.textContent = '🟢 Connected';
+                statusDiv.style.background = 'rgba(0, 255, 136, 0.2)';
+            }, 2000);
+        });
+        
+        // Connection status
+        socket.on('connect', function() {
+            console.log('✅ Connected to server');
+            document.getElementById('connectionStatus').textContent = '🟢 Connected';
+            document.getElementById('connectionStatus').className = 'connection-status connected';
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('❌ Disconnected from server');
+            document.getElementById('connectionStatus').textContent = '⚫ Disconnected';
+            document.getElementById('connectionStatus').className = 'connection-status disconnected';
+        });
+
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        const game = {
+            player: {
+                x: 100,
+                y: canvas.height - 100,
+                width: 40,
+                height: 60,
+                velocityX: 0,
+                velocityY: 0,
+                jumping: false,
+                flying: false,
+                color: '#00ff88',
+                maxSpeed: 8,
+                acceleration: 0.5,
+                deceleration: 0.3
+            },
+            pulses: [],
+            collectibles: [],
+            enemies: [],
+            score: 0,
+            pulsesJumped: 0,
+            combo: 0,
+            itemsCollected: 0,
+            health: 3,
+            maxHealth: 3,
+            gameOver: false,
+            gameWon: false,
+            gameStarted: false,  // NEW: Game only starts when Arduino button is pressed
+            survivalTime: 0,
+            survivalTarget: 60,  // 60 seconds to win
+            startTime: Date.now(),
+            projectiles: [],  // Poop and pee projectiles
+            gravity: 0.8,
+            jumpStrength: -15,
+            flySpeed: 6,
+            groundY: canvas.height - 100,
+            joystickConnected: false,
+            gamepadIndex: null,
+            flyMode: true,  // Start in flying mode (can toggle with F or Y button)
+            webcamActive: false,
+            webcamStream: null
+        };
+        
+        // Set player to flying after game object is created
+        game.player.flying = true;
+        game.player.velocityY = 0;  // No gravity at start
+        game.player.velocityX = 0;
+
+        // Pulse class
+        class Pulse {
+            constructor(distance, intensity) {
+                this.x = canvas.width;
+                this.y = game.groundY;
+                
+                // DYNAMIC DIFFICULTY: Closer hand = Bigger pulse = Harder to jump
+                // Distance ranges:
+                // 5cm (very close)  → intensity ~0.9 → height ~250px (HARD!)
+                // 15cm (medium)     → intensity ~0.7 → height ~180px (Medium)
+                // 30cm (far)        → intensity ~0.4 → height ~120px (Easy)
+                // 50cm (very far)   → intensity ~0.0 → height ~80px (Very Easy)
+                
+                const baseWidth = 25;
+                const maxWidthBonus = 60;
+                this.width = baseWidth + (intensity * maxWidthBonus);
+                // Close: 25 + (0.9 * 60) = 79px
+                // Far: 25 + (0.0 * 60) = 25px
+                
+                const baseHeight = 80;
+                const maxHeightBonus = 200;
+                this.height = baseHeight + (intensity * maxHeightBonus);
+                // Close: 80 + (0.9 * 200) = 260px (TALL!)
+                // Medium: 80 + (0.7 * 200) = 220px
+                // Far: 80 + (0.0 * 200) = 80px (SHORT)
+                
+                // Speed also increases with difficulty
+                const baseSpeed = 4;
+                const maxSpeedBonus = 3;
+                this.speed = baseSpeed + (intensity * maxSpeedBonus);
+                // Close: 4 + (0.9 * 3) = 6.7 px/frame (FAST!)
+                // Far: 4 + (0.0 * 3) = 4 px/frame (SLOW)
+                
+                this.intensity = intensity;
+                this.color = this.getColor(intensity);
+                this.jumped = false;
+                this.distance = distance;
+            }
+
+            getColor(intensity) {
+                const hue = 180 + (intensity * 60);
+                return `hsla(${hue}, 100%, 60%, 0.8)`;
+            }
+
+            update() {
+                this.x -= this.speed;
+            }
+
+            draw() {
+                // Stronger glow for harder pulses
+                const glowIntensity = 20 + (this.intensity * 30);
+                ctx.shadowBlur = glowIntensity;
+                ctx.shadowColor = this.color;
+                
+                // Draw pulse with gradient (darker at top, lighter at bottom)
+                const gradient = ctx.createLinearGradient(
+                    this.x, this.y - this.height,
+                    this.x, this.y
+                );
+                
+                // Color intensity based on difficulty
+                const alpha = 0.6 + (this.intensity * 0.3);
+                gradient.addColorStop(0, this.color.replace('0.8)', `${alpha})`));
+                gradient.addColorStop(1, this.color);
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(this.x, this.y - this.height, this.width, this.height);
+                
+                // Draw difficulty indicator on pulse
+                ctx.shadowBlur = 0;
+                
+                // Distance label
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${this.distance.toFixed(0)}cm`, this.x + this.width/2, this.y - this.height - 25);
+                
+                // Difficulty label
+                let difficultyText = '';
+                let difficultyColor = '';
+                if (this.intensity > 0.7) {
+                    difficultyText = 'HARD!';
+                    difficultyColor = '#ff4444';
+                } else if (this.intensity > 0.5) {
+                    difficultyText = 'Medium';
+                    difficultyColor = '#ffaa00';
+                } else if (this.intensity > 0.3) {
+                    difficultyText = 'Easy';
+                    difficultyColor = '#00ff88';
+                } else {
+                    difficultyText = 'Very Easy';
+                    difficultyColor = '#00ffff';
+                }
+                
+                ctx.fillStyle = difficultyColor;
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(difficultyText, this.x + this.width/2, this.y - this.height - 10);
+            }
+
+            isOffScreen() {
+                return this.x + this.width < 0;
+            }
+
+            collidesWith(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y &&
+                       player.y + player.height > this.y - this.height;
+            }
+
+            canJumpOver(player) {
+                // Player is above the pulse
+                return player.y + player.height < this.y - this.height;
+            }
+        }
+
+        // Sushi Collectible class - Different types of sushi!
+        class Collectible {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 40;
+                this.height = 30;
+                this.collected = false;
+                this.pulseSize = 0;
+                this.id = Date.now() + Math.random();
+                
+                // Lifetime: 5 seconds
+                this.spawnTime = Date.now();
+                this.lifetime = 5000;  // 5000ms = 5 seconds
+                this.fadingOut = false;
+                this.alive = true;
+                
+                // Random sushi type (0-4)
+                this.sushiType = Math.floor(Math.random() * 5);
+                const sushiData = [
+                    {name: 'Nigiri', value: 50, color: '#ff6b6b'},
+                    {name: 'Maki', value: 75, color: '#4ecdc4'},
+                    {name: 'Sashimi', value: 100, color: '#ff8c42'},
+                    {name: 'Temaki', value: 60, color: '#95e1d3'},
+                    {name: 'Onigiri', value: 40, color: '#f38181'}
+                ];
+                this.name = sushiData[this.sushiType].name;
+                this.value = sushiData[this.sushiType].value;
+                this.color = sushiData[this.sushiType].color;
+            }
+
+            update() {
+                // Check lifetime - disappear after 5 seconds
+                const age = Date.now() - this.spawnTime;
+                if (age >= this.lifetime) {
+                    this.alive = false;  // Mark for removal
+                    return;
+                }
+                
+                // Start fading in last second
+                if (age >= this.lifetime - 1000) {
+                    this.fadingOut = true;
+                }
+                
+                this.pulseSize = Math.sin(Date.now() * 0.005) * 2;
+            }
+
+            draw() {
+                const size = 3;
+                
+                // Calculate opacity based on lifetime
+                let opacity = 1.0;
+                if (this.fadingOut) {
+                    const age = Date.now() - this.spawnTime;
+                    const fadeTime = this.lifetime - age;
+                    opacity = fadeTime / 1000;  // Fade over last second
+                }
+                
+                ctx.globalAlpha = opacity;
+                ctx.shadowBlur = 15 * opacity;
+                ctx.shadowColor = this.color;
+                
+                let sushiPattern;
+                switch(this.sushiType) {
+                    case 0: // Nigiri (rice + fish on top)
+                        sushiPattern = [
+                            [0,0,2,2,2,2,2,2,0,0],
+                            [0,2,2,2,2,2,2,2,2,0],
+                            [2,1,1,1,1,1,1,1,1,2],
+                            [2,1,1,1,1,1,1,1,1,2],
+                            [0,2,1,1,1,1,1,1,2,0]
+                        ];
+                        break;
+                    case 1: // Maki (roll with nori)
+                        sushiPattern = [
+                            [0,0,3,3,3,3,3,3,0,0],
+                            [0,3,2,2,2,2,2,2,3,0],
+                            [3,2,1,1,1,1,1,1,2,3],
+                            [3,2,1,4,4,4,4,1,2,3],
+                            [0,3,2,1,1,1,1,2,3,0],
+                            [0,0,3,3,3,3,3,3,0,0]
+                        ];
+                        break;
+                    case 2: // Sashimi (just fish slice)
+                        sushiPattern = [
+                            [0,0,2,2,2,2,2,0,0],
+                            [0,2,2,2,2,2,2,2,0],
+                            [2,2,2,2,2,2,2,2,2],
+                            [0,2,2,2,2,2,2,2,0],
+                            [0,0,2,2,2,2,2,0,0]
+                        ];
+                        break;
+                    case 3: // Temaki (hand roll cone)
+                        sushiPattern = [
+                            [0,0,0,3,3,3,3,3,3],
+                            [0,0,3,2,2,2,2,2,3],
+                            [0,3,2,1,1,1,1,2,3],
+                            [3,2,1,1,4,4,1,2,0],
+                            [3,2,1,1,1,1,2,0,0],
+                            [3,3,3,3,3,3,0,0,0]
+                        ];
+                        break;
+                    case 4: // Onigiri (rice ball with nori)
+                        sushiPattern = [
+                            [0,0,1,1,1,1,1,1,0,0],
+                            [0,1,1,1,1,1,1,1,1,0],
+                            [1,1,1,1,1,1,1,1,1,1],
+                            [1,1,3,3,3,3,3,3,1,1],
+                            [0,1,1,1,1,1,1,1,1,0],
+                            [0,0,1,1,1,1,1,1,0,0]
+                        ];
+                        break;
+                }
+                
+                // Draw sushi pixel by pixel
+                for (let row = 0; row < sushiPattern.length; row++) {
+                    for (let col = 0; col < sushiPattern[row].length; col++) {
+                        const pixel = sushiPattern[row][col];
+                        if (pixel === 0) continue;
+                        
+                        let color;
+                        if (pixel === 1) color = '#ffffff';      // White rice
+                        else if (pixel === 2) color = this.color; // Fish/filling
+                        else if (pixel === 3) color = '#2d5016';  // Nori (seaweed)
+                        else if (pixel === 4) color = '#ff6b6b';  // Red filling
+                        
+                        ctx.fillStyle = color;
+                        ctx.fillRect(this.x + col * size, this.y + row * size, size, size);
+                    }
+                }
+                
+                ctx.shadowBlur = 0;
+                
+                // Draw sushi name
+                ctx.fillStyle = this.color;
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`🍣 ${this.name}`, this.x + this.width/2, this.y - 15);
+                
+                // Draw value
+                ctx.fillStyle = '#ffff00';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(`+${this.value}`, this.x + this.width/2, this.y - 3);
+                
+                // Show lifetime warning in last 2 seconds
+                const age = Date.now() - this.spawnTime;
+                const timeLeft = (this.lifetime - age) / 1000;
+                if (timeLeft <= 2) {
+                    ctx.fillStyle = timeLeft <= 1 ? '#ff0000' : '#ffaa00';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillText(`${timeLeft.toFixed(1)}s`, this.x + this.width/2, this.y + this.height + 12);
+                }
+                
+                ctx.globalAlpha = 1.0;  // Reset opacity
+            }
+
+            collidesWith(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+
+        // Enemy class - Abyssal creatures
+        class Enemy {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 35;
+                this.height = 35;
+                this.damage = 1;
+                this.speed = 2 + Math.random() * 2;  // 2-4 px/frame
+                this.alive = true;
+                this.id = Date.now() + Math.random();
+                
+                // Random abyssal fish type (0-4)
+                this.fishType = Math.floor(Math.random() * 5);
+                
+                // Random movement pattern
+                this.pattern = Math.floor(Math.random() * 3);
+                // 0: Chase player
+                // 1: Zigzag
+                // 2: Circle around
+                
+                this.angle = Math.random() * Math.PI * 2;
+                this.zigzagTime = 0;
+                this.invulnerable = false;
+                this.animFrame = 0;
+                
+                // Lifetime: 5 seconds
+                this.spawnTime = Date.now();
+                this.lifetime = 5000;  // 5000ms = 5 seconds
+                this.fadingOut = false;
+            }
+
+            update() {
+                // Check lifetime - disappear after 5 seconds
+                const age = Date.now() - this.spawnTime;
+                if (age >= this.lifetime) {
+                    this.alive = false;  // Mark for removal
+                    return;
+                }
+                
+                // Start fading in last second
+                if (age >= this.lifetime - 1000) {
+                    this.fadingOut = true;
+                }
+                
+                // Different movement patterns
+                if (this.pattern === 0) {
+                    // Chase player
+                    const dx = game.player.x - this.x;
+                    const dy = game.player.y - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        this.x += (dx / distance) * this.speed;
+                        this.y += (dy / distance) * this.speed;
+                    }
+                } else if (this.pattern === 1) {
+                    // Zigzag towards player
+                    this.zigzagTime += 0.1;
+                    const dx = game.player.x - this.x;
+                    this.x += Math.sign(dx) * this.speed;
+                    this.y += Math.sin(this.zigzagTime) * 3;
+                } else {
+                    // Circle/wave pattern
+                    this.angle += 0.05;
+                    this.x += Math.cos(this.angle) * this.speed;
+                    this.y += Math.sin(this.angle) * this.speed;
+                }
+                
+                // Keep in bounds
+                this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+                this.y = Math.max(0, Math.min(game.groundY, this.y));
+            }
+
+            draw() {
+                this.animFrame += 0.1;
+                const pixelSize = 5;
+                
+                // Calculate opacity based on lifetime
+                let opacity = 1.0;
+                if (this.fadingOut) {
+                    const age = Date.now() - this.spawnTime;
+                    const fadeTime = this.lifetime - age;
+                    opacity = fadeTime / 1000;  // Fade over last second
+                }
+                
+                ctx.globalAlpha = opacity;
+                ctx.shadowBlur = 20 * opacity;
+                ctx.shadowColor = this.getShadowColor();
+                
+                let enemyPattern;
+                let colors;
+                
+                // 5 different abyssal fish designs
+                switch(this.fishType) {
+                    case 0: // Anglerfish - with glowing lure
+                        enemyPattern = [
+                            [0,0,0,4,0,0,0],  // Glowing lure
+                            [0,0,0,1,0,0,0],
+                            [0,1,1,1,1,1,0],
+                            [1,2,3,2,3,2,1],  // Big eyes
+                            [1,2,2,2,2,2,1],
+                            [1,2,5,5,5,2,1],  // Sharp teeth
+                            [0,1,1,1,1,1,0]
+                        ];
+                        colors = {
+                            1: '#330000',  // Dark body
+                            2: '#660000',  // Body
+                            3: '#ffff00',  // Eyes
+                            4: '#00ff00',  // Glowing lure
+                            5: '#ffffff'   // Teeth
+                        };
+                        break;
+                        
+                    case 1: // Viperfish - long teeth
+                        enemyPattern = [
+                            [0,0,1,1,1,0,0],
+                            [0,1,2,2,2,1,0],
+                            [1,2,3,2,3,2,1],  // Small eyes
+                            [1,2,2,2,2,2,1],
+                            [1,5,2,2,2,5,1],  // Fangs out
+                            [0,5,1,1,1,5,0],
+                            [0,0,5,0,5,0,0]
+                        ];
+                        colors = {
+                            1: '#001133',  // Dark blue
+                            2: '#003366',  // Body
+                            3: '#ff0000',  // Red eyes
+                            5: '#cccccc'   // Long fangs
+                        };
+                        break;
+                        
+                    case 2: // Gulper Eel - huge mouth
+                        enemyPattern = [
+                            [0,0,1,3,1,0,0],  // Tiny eye
+                            [0,1,2,2,2,1,0],
+                            [1,2,2,2,2,2,1],
+                            [1,5,5,5,5,5,1],  // HUGE mouth
+                            [1,5,2,2,2,5,1],
+                            [0,1,5,5,5,1,0],
+                            [0,0,1,1,1,0,0]
+                        ];
+                        colors = {
+                            1: '#220022',  // Purple outline
+                            2: '#440044',  // Purple body
+                            3: '#ffffff',  // Tiny eye
+                            5: '#880088'   // Mouth
+                        };
+                        break;
+                        
+                    case 3: // Fangtooth - spiky and scary
+                        enemyPattern = [
+                            [0,1,0,1,0,1,0],  // Spikes
+                            [1,2,1,2,1,2,1],
+                            [1,2,3,2,3,2,1],  // Eyes
+                            [1,2,2,2,2,2,1],
+                            [1,5,2,5,2,5,1],  // Multiple teeth
+                            [0,1,5,1,5,1,0],
+                            [0,0,1,0,1,0,0]
+                        ];
+                        colors = {
+                            1: '#331100',  // Brown outline
+                            2: '#663300',  // Brown body
+                            3: '#ff6600',  // Orange eyes
+                            5: '#ffffff'   // Teeth
+                        };
+                        break;
+                        
+                    case 4: // Blobfish - ugly and deformed
+                        enemyPattern = [
+                            [0,0,1,1,1,0,0],
+                            [0,1,2,2,2,1,0],
+                            [1,2,3,2,3,2,1],  // Sad eyes
+                            [1,2,2,4,2,2,1],  // Droopy nose
+                            [1,2,4,4,4,2,1],
+                            [0,1,2,2,2,1,0],
+                            [0,0,1,1,1,0,0]
+                        ];
+                        colors = {
+                            1: '#443333',  // Gray outline
+                            2: '#887766',  // Pale body
+                            3: '#000000',  // Dead eyes
+                            4: '#aa9988'   // Droopy parts
+                        };
+                        break;
+                }
+                
+                // Draw the abyssal fish
+                for (let row = 0; row < enemyPattern.length; row++) {
+                    for (let col = 0; col < enemyPattern[row].length; col++) {
+                        const pixel = enemyPattern[row][col];
+                        if (pixel === 0) continue;
+                        
+                        ctx.fillStyle = colors[pixel] || '#ff0000';
+                        
+                        // Slight animation wobble
+                        const wobble = Math.sin(this.animFrame + col) * 0.5;
+                        
+                        ctx.fillRect(
+                            this.x + col * pixelSize + wobble,
+                            this.y + row * pixelSize,
+                            pixelSize,
+                            pixelSize
+                        );
+                    }
+                }
+                
+                ctx.shadowBlur = 0;
+                
+                // Draw name and pattern
+                const fishNames = ['Anglerfish', 'Viperfish', 'Gulper Eel', 'Fangtooth', 'Blobfish'];
+                const patternNames = ['Chase', 'Zigzag', 'Circle'];
+                
+                ctx.fillStyle = '#ff4444';
+                ctx.font = 'bold 9px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(fishNames[this.fishType], this.x + this.width/2, this.y - 10);
+                ctx.font = '8px Arial';
+                ctx.fillText(patternNames[this.pattern], this.x + this.width/2, this.y - 2);
+                
+                // Show lifetime warning in last 2 seconds
+                const age = Date.now() - this.spawnTime;
+                const timeLeft = (this.lifetime - age) / 1000;
+                if (timeLeft <= 2) {
+                    ctx.fillStyle = timeLeft <= 1 ? '#ff0000' : '#ffaa00';
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillText(`${timeLeft.toFixed(1)}s`, this.x + this.width/2, this.y + this.height + 12);
+                }
+                
+                ctx.globalAlpha = 1.0;  // Reset opacity
+            }
+            
+            getShadowColor() {
+                const colors = [
+                    '#00ff00',  // Anglerfish - green glow
+                    '#ff0000',  // Viperfish - red
+                    '#ff00ff',  // Gulper Eel - purple
+                    '#ff6600',  // Fangtooth - orange
+                    '#888888'   // Blobfish - gray
+                ];
+                return colors[this.fishType];
+            }
+
+            collidesWith(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+
+        // Socket events
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').className = 'connection-status connected';
+            document.getElementById('connectionStatus').textContent = '🟢 Connected';
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').className = 'connection-status disconnected';
+            document.getElementById('connectionStatus').textContent = '⚫ Disconnected';
+        });
+
+        // Proximity pulse creates game obstacle
+        socket.on('proximity_pulse', (data) => {
+            console.log('Proximity pulse:', data);
+            
+            // Create new pulse obstacle
+            const pulse = new Pulse(data.distance, data.pulse_intensity);
+            game.pulses.push(pulse);
+        });
+
+        // Spawn collectible event (right hand)
+        socket.on('spawn_collectible', (data) => {
+            console.log('✋ Right hand - Spawning collectible:', data);
+            
+            // Random position on screen
+            const x = Math.random() * (canvas.width - 100) + 50;
+            const y = Math.random() * (game.groundY - 100) + 50;
+            
+            const collectible = new Collectible(x, y);
+            game.collectibles.push(collectible);
+        });
+
+        // Spawn enemy event (left hand)
+        socket.on('spawn_enemy', (data) => {
+            console.log('🤚 Left hand - Spawning enemy:', data);
+            
+            // Random position on edges
+            let x, y;
+            const side = Math.random();
+            if (side < 0.5) {
+                // Spawn from right side
+                x = canvas.width - 50;
+                y = Math.random() * (game.groundY - 100) + 50;
+            } else {
+                // Spawn from top
+                x = Math.random() * (canvas.width - 100) + 50;
+                y = 50;
+            }
+            
+            const enemy = new Enemy(x, y);
+            game.enemies.push(enemy);
+        });
+        
+        // Player controls
+        const keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            // Prevent any actions until game starts
+            if (!game.gameStarted) return;
+            
+            if (e.key === ' ' && !game.gameOver) {
+                if (game.flyMode) {
+                    // Space toggles flying on/off in fly mode
+                    if (!game.player.flying) {
+                        // Start flying - freeze in current position
+                        game.player.flying = true;
+                        game.player.velocityY = 0;
+                        game.player.velocityX = 0;
+                        game.player.jumping = false;
+                        console.log('✈️ Flying activated');
+                    } else {
+                        // Stop flying - start falling
+                        game.player.flying = false;
+                        console.log('🏃 Walking mode');
+                    }
+                } else {
+                    // Normal jump mode (when fly mode is OFF)
+                    if (!game.player.jumping) {
+                        jump();
+                    }
+                }
+            }
+            
+            // F key toggles fly mode
+            if (e.key === 'f' || e.key === 'F') {
+                game.flyMode = !game.flyMode;
+                if (!game.flyMode) {
+                    game.player.flying = false;  // Exit flying when disabling fly mode
+                } else {
+                    game.player.flying = true;   // Enter flying when enabling fly mode
+                    game.player.velocityY = 0;
+                    game.player.velocityX = 0;
+                }
+                console.log('🎮 Fly mode:', game.flyMode ? 'ON ✈️' : 'OFF 🏃');
+            }
+            
+            // W key toggles webcam
+            if (e.key === 'w' || e.key === 'W') {
+                toggleWebcam();
+            }
+            
+            // S key shoots (alternates poop/pee) - only on NEW key press
+            if (e.key === 's' || e.key === 'S') {
+                if (!keys['shootKey']) {
+                    keys['shootKey'] = true;
+                    shootProjectile();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+            if (e.key === 's' || e.key === 'S') {
+                keys['shootKey'] = false;
+            }
+        });
+
+        function jump() {
+            if (!game.player.jumping) {
+                game.player.velocityY = game.jumpStrength;
+                game.player.jumping = true;
+            }
+        }
+
+        // Gamepad support
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('Gamepad connected:', e.gamepad);
+            game.joystickConnected = true;
+            game.gamepadIndex = e.gamepad.index;
+            
+            document.getElementById('joystickStatus').className = 'joystick-connected';
+            document.getElementById('joystickStatus').textContent = '🎮 ' + e.gamepad.id.substring(0, 20);
+        });
+
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('Gamepad disconnected');
+            game.joystickConnected = false;
+            game.gamepadIndex = null;
+            
+            document.getElementById('joystickStatus').className = 'joystick-disconnected';
+            document.getElementById('joystickStatus').textContent = '🎮 No Joystick';
+        });
+
+        function pollGamepad() {
+            if (!game.gameStarted || !game.joystickConnected || game.gameOver) return;
+            
+            const gamepads = navigator.getGamepads();
+            const gamepad = gamepads[game.gamepadIndex];
+            
+            if (gamepad) {
+                // Button 0 (A button) to jump or toggle flying
+                if (gamepad.buttons[0].pressed) {
+                    if (game.flyMode && !game.player.wasButtonPressed) {
+                        game.player.flying = !game.player.flying;
+                        if (game.player.flying) {
+                            game.player.velocityY = 0;
+                        }
+                        game.player.wasButtonPressed = true;
+                    } else if (!game.flyMode && !game.player.jumping) {
+                        jump();
+                    }
+                } else {
+                    game.player.wasButtonPressed = false;
+                }
+                
+                // Button 3 (Y/Triangle button) toggles fly mode
+                if (gamepad.buttons[3] && gamepad.buttons[3].pressed && !game.player.wasYButtonPressed) {
+                    game.flyMode = !game.flyMode;
+                    if (!game.flyMode) {
+                        game.player.flying = false;  // Exit flying
+                    } else {
+                        game.player.flying = true;   // Enter flying
+                        game.player.velocityY = 0;
+                        game.player.velocityX = 0;
+                    }
+                    game.player.wasYButtonPressed = true;
+                    console.log('🎮 Fly mode:', game.flyMode ? 'ON ✈️' : 'OFF 🏃');
+                } else if (!gamepad.buttons[3] || !gamepad.buttons[3].pressed) {
+                    game.player.wasYButtonPressed = false;
+                }
+                
+                // Button 1 (B/Circle - RED button on right pad) shoots
+                // This is typically the red circle button on PlayStation or B on Xbox
+                if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
+                    if (!game.player.wasShootPressed) {
+                        shootProjectile();
+                        game.player.wasShootPressed = true;
+                    }
+                } else {
+                    game.player.wasShootPressed = false;
+                }
+                
+                // D-pad or left stick for movement
+                const moveX = gamepad.axes[0];  // Left stick X
+                const moveY = gamepad.axes[1];  // Left stick Y
+                
+                if (game.flyMode && game.player.flying) {
+                    // Flying mode - smooth 360 degree movement
+                    // NO GRAVITY - Reset velocities
+                    game.player.velocityX = 0;
+                    game.player.velocityY = 0;
+                    game.player.jumping = false;
+                    
+                    // Smooth joystick movement
+                    if (Math.abs(moveX) > 0.1) {
+                        game.player.x += moveX * game.flySpeed;
+                    }
+                    if (Math.abs(moveY) > 0.1) {
+                        game.player.y += moveY * game.flySpeed;
+                    }
+                    
+                    // Keep in bounds
+                    game.player.x = Math.max(0, Math.min(canvas.width - game.player.width, game.player.x));
+                    game.player.y = Math.max(0, Math.min(game.groundY, game.player.y));
+                } else {
+                    // Normal mode - horizontal movement only
+                    if (Math.abs(moveX) > 0.2) {
+                        game.player.x += moveX * 5;
+                        game.player.x = Math.max(0, Math.min(canvas.width - game.player.width, game.player.x));
+                    }
+                }
+            }
+        }
+
+        // Ensure flying mode is active at start
+        function ensureFlyingMode() {
+            if (game.flyMode && !game.player.flying) {
+                game.player.flying = true;
+                game.player.velocityY = 0;
+                game.player.velocityX = 0;
+            }
+        }
+
+        // Update game state
+        function update() {
+            // Don't update if game hasn't started yet
+            if (!game.gameStarted) return;
+            
+            if (game.gameOver || game.gameWon) return;
+            
+            // Ensure flying mode on first frame
+            ensureFlyingMode();
+
+            // Update survival timer
+            game.survivalTime = (Date.now() - game.startTime) / 1000;  // seconds
+            
+            // Check if player survived 60 seconds - VICTORY!
+            if (game.survivalTime >= game.survivalTarget) {
+                winGame();
+                return;
+            }
+
+            // Poll gamepad
+            pollGamepad();
+
+            // Player movement (keyboard)
+            if (game.flyMode && game.player.flying) {
+                // Flying mode - smooth 8-directional movement
+                // NO GRAVITY - Reset velocities to 0
+                game.player.velocityX = 0;
+                game.player.velocityY = 0;
+                game.player.jumping = false;  // Prevent jumping state
+                
+                // Apply movement only when keys are pressed
+                if (keys['ArrowLeft']) {
+                    game.player.x -= game.flySpeed;
+                }
+                if (keys['ArrowRight']) {
+                    game.player.x += game.flySpeed;
+                }
+                if (keys['ArrowUp']) {
+                    game.player.y -= game.flySpeed;
+                }
+                if (keys['ArrowDown']) {
+                    game.player.y += game.flySpeed;
+                }
+                
+                // Keep player in bounds
+                game.player.x = Math.max(0, Math.min(canvas.width - game.player.width, game.player.x));
+                game.player.y = Math.max(0, Math.min(game.groundY, game.player.y));
+                
+            } else {
+                // Normal jump mode - horizontal movement only
+                if (keys['ArrowLeft']) {
+                    game.player.x -= 5;
+                }
+                if (keys['ArrowRight']) {
+                    game.player.x += 5;
+                }
+                
+                // Keep player in bounds
+                game.player.x = Math.max(0, Math.min(canvas.width - game.player.width, game.player.x));
+
+                // Only apply gravity if NOT flying
+                if (!game.player.flying) {
+                    // Apply gravity
+                    game.player.velocityY += game.gravity;
+                    game.player.y += game.player.velocityY;
+
+                    // Ground collision
+                    if (game.player.y >= game.groundY) {
+                        game.player.y = game.groundY;
+                        game.player.velocityY = 0;
+                        game.player.jumping = false;
+                    }
+                } else {
+                    // Flying - no physics, just reset
+                    game.player.velocityY = 0;
+                    game.player.velocityX = 0;
+                }
+            }
+
+            // Update projectiles
+            for (let i = game.projectiles.length - 1; i >= 0; i--) {
+                const proj = game.projectiles[i];
+                proj.update();
+                
+                // Check collision with enemies
+                for (let j = game.enemies.length - 1; j >= 0; j--) {
+                    const enemy = game.enemies[j];
+                    if (proj.active && enemy.alive && proj.collidesWith(enemy)) {
+                        // Hit!
+                        proj.active = false;
+                        enemy.alive = false;
+                        game.score += 25;  // Bonus for killing enemy
+                        game.enemies.splice(j, 1);
+                        game.projectiles.splice(i, 1);
+                        
+                        // Play laugh sound
+                        playLaughSound();
+                        
+                        console.log('💩 Enemy killed! +25 points');
+                        updateScore();
+                        break;
+                    }
+                }
+                
+                // Remove inactive projectiles
+                if (!proj.active) {
+                    game.projectiles.splice(i, 1);
+                }
+            }
+
+            // Update collectibles
+            for (let i = game.collectibles.length - 1; i >= 0; i--) {
+                const collectible = game.collectibles[i];
+                collectible.update();
+                
+                // Remove if lifetime expired (5 seconds)
+                if (!collectible.alive) {
+                    game.collectibles.splice(i, 1);
+                    console.log('💨 Sushi disappeared after 5 seconds');
+                    continue;
+                }
+                
+                // Check collision with player
+                if (!collectible.collected && collectible.collidesWith(game.player)) {
+                    collectible.collected = true;
+                    game.score += collectible.value;
+                    game.itemsCollected++;
+                    game.collectibles.splice(i, 1);
+                    updateScore();
+                    console.log(`🍣 Collected ${collectible.name}! +${collectible.value}`);
+                }
+            }
+
+            // Update enemies
+            for (let i = game.enemies.length - 1; i >= 0; i--) {
+                const enemy = game.enemies[i];
+                enemy.update();
+                
+                // Remove enemy if lifetime expired (5 seconds)
+                if (!enemy.alive) {
+                    game.enemies.splice(i, 1);
+                    console.log('💨 Enemy disappeared after 5 seconds');
+                    continue;
+                }
+                
+                // Check collision with player - INSTANT DEATH!
+                if (enemy.collidesWith(game.player)) {
+                    enemy.alive = false;
+                    game.health = 0;  // Instant death!
+                    game.enemies.splice(i, 1);
+                    
+                    console.log('💀 Hit by enemy! GAME OVER!');
+                    
+                    // Flash screen red
+                    canvas.style.borderColor = '#ff0000';
+                    setTimeout(() => {
+                        canvas.style.borderColor = '#00ff88';
+                    }, 200);
+                    
+                    // Instant game over
+                    endGame();
+                }
+            }
+
+            // Update pulses
+            for (let i = game.pulses.length - 1; i >= 0; i--) {
+                const pulse = game.pulses[i];
+                pulse.update();
+
+                // Check if player jumped over pulse
+                if (!pulse.jumped && pulse.x + pulse.width < game.player.x) {
+                    if (pulse.canJumpOver(game.player)) {
+                        // Successfully jumped!
+                        pulse.jumped = true;
+                        game.score += 10 * (game.combo + 1);
+                        game.pulsesJumped++;
+                        game.combo++;
+                        updateScore();
+                    } else {
+                        // Missed the jump - game over!
+                        endGame();
+                    }
+                }
+
+                // Check collision with pulse
+                if (!pulse.jumped && pulse.collidesWith(game.player)) {
+                    // Hit the pulse - game over!
+                    endGame();
+                }
+
+                // Remove off-screen pulses
+                if (pulse.isOffScreen()) {
+                    game.pulses.splice(i, 1);
+                }
+            }
+        }
+
+        // Draw game
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw ground
+            ctx.fillStyle = '#0a2540';
+            ctx.fillRect(0, game.groundY + game.player.height, canvas.width, canvas.height);
+
+            // Draw ground line
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, game.groundY + game.player.height);
+            ctx.lineTo(canvas.width, game.groundY + game.player.height);
+            ctx.stroke();
+
+            // Draw pulses
+            game.pulses.forEach(pulse => pulse.draw());
+
+            // Draw collectibles
+            game.collectibles.forEach(collectible => collectible.draw());
+
+            // Draw enemies
+            game.enemies.forEach(enemy => enemy.draw());
+
+            // Draw projectiles
+            game.projectiles.forEach(proj => proj.draw());
+
+            // Draw player as cyberpunk Pac-Man
+            drawCyberpunkPacman(game.player.x, game.player.y, game.player.flying);
+
+            // Draw health bar
+            drawHealthBar();
+            
+            // Draw survival timer
+            drawSurvivalTimer();
+
+            // Draw mode indicator
+            if (game.flyMode) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00ffff';
+                ctx.fillStyle = '#00ffff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('FLY MODE', game.player.x + game.player.width/2, game.player.y - 30);
+            }
+            
+            // Draw combo multiplier
+            if (game.combo > 0) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ffff00';
+                ctx.fillStyle = '#ffff00';
+                ctx.font = 'bold 24px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`x${game.combo}`, game.player.x + game.player.width/2, game.player.y - 10);
+            }
+            
+            // Draw "Press Arduino Button to Start" message
+            if (!game.gameStarted) {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00ff88';
+                ctx.fillStyle = '#00ff88';
+                ctx.font = 'bold 48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Press Arduino Button to Start', canvas.width / 2, canvas.height / 2);
+                
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText('🎮 Physical button on COM7', canvas.width / 2, canvas.height / 2 + 50);
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Update score display
+        function updateScore() {
+            document.getElementById('score').textContent = game.score;
+            document.getElementById('pulses').textContent = game.pulsesJumped;
+            document.getElementById('combo').textContent = game.combo;
+        }
+
+        // End game (death)
+        function endGame() {
+            game.gameOver = true;
+            document.getElementById('finalScore').textContent = game.score;
+            document.getElementById('finalPulses').textContent = game.pulsesJumped;
+            document.getElementById('gameOver').style.display = 'block';
+            
+            // Emit game over event to server with score
+            socket.emit('game_over', {
+                score: game.score,
+                pulses: game.pulsesJumped,
+                items: game.itemsCollected,
+                reason: 'death'
+            });
+            console.log('🏁 Game over event sent - Score:', game.score);
+        }
+
+        // Win game (survived 60 seconds)
+        function winGame() {
+            game.gameWon = true;
+            document.getElementById('winScore').textContent = game.score;
+            document.getElementById('winPulses').textContent = game.pulsesJumped;
+            document.getElementById('winItems').textContent = game.itemsCollected;
+            document.getElementById('gameWon').style.display = 'block';
+            
+            // Play celebration sound
+            playCelebrationSound();
+            
+            // Confetti animation
+            startConfetti();
+            
+            // Emit game over event to server with score
+            socket.emit('game_over', {
+                score: game.score,
+                pulses: game.pulsesJumped,
+                items: game.itemsCollected,
+                reason: 'victory'
+            });
+            console.log('🏆 VICTORY! Player survived 60 seconds! Score:', game.score);
+        }
+
+        // Play celebration sound
+        function playCelebrationSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Victory fanfare melody
+            const notes = [
+                {freq: 523.25, time: 0},     // C5
+                {freq: 659.25, time: 0.15},  // E5
+                {freq: 783.99, time: 0.3},   // G5
+                {freq: 1046.50, time: 0.45}, // C6
+                {freq: 783.99, time: 0.6},   // G5
+                {freq: 1046.50, time: 0.75}  // C6 (hold)
+            ];
+            
+            notes.forEach(note => {
+                setTimeout(() => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = note.freq;
+                    oscillator.type = 'triangle';
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.3);
+                }, note.time * 1000);
+            });
+        }
+
+        // Confetti animation
+        let confettiParticles = [];
+        function startConfetti() {
+            // Create confetti particles
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: -20,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: Math.random() * 3 + 2,
+                    color: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'][Math.floor(Math.random() * 6)],
+                    size: Math.random() * 8 + 4,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.2
+                });
+            }
+            
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            if (confettiParticles.length === 0) return;
+            
+            // Update and draw confetti
+            ctx.save();
+            for (let i = confettiParticles.length - 1; i >= 0; i--) {
+                const p = confettiParticles[i];
+                
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1;  // Gravity
+                p.rotation += p.rotationSpeed;
+                
+                // Draw confetti
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.restore();
+                
+                // Remove if off screen
+                if (p.y > canvas.height + 20) {
+                    confettiParticles.splice(i, 1);
+                }
+            }
+            ctx.restore();
+            
+            if (confettiParticles.length > 0) {
+                requestAnimationFrame(animateConfetti);
+            }
+        }
+
+        // Restart game
+        function restartGame() {
+            game.player.x = 100;
+            game.player.y = game.groundY;
+            game.player.velocityX = 0;
+            game.player.velocityY = 0;
+            game.player.jumping = false;
+            game.player.flying = false;
+            game.pulses = [];
+            game.collectibles = [];
+            game.enemies = [];
+            game.projectiles = [];
+            game.score = 0;
+            game.pulsesJumped = 0;
+            game.combo = 0;
+            game.itemsCollected = 0;
+            game.health = game.maxHealth;
+            game.gameOver = false;
+            game.gameWon = false;
+            game.gameStarted = true;  // Ensure game is started after restart
+            game.survivalTime = 0;
+            game.startTime = Date.now();
+            game.flyMode = true;  // Always start in fly mode
+            game.player.flying = true;  // Always start flying
+            
+            // Clear confetti
+            confettiParticles = [];
+            
+            document.getElementById('gameOver').style.display = 'none';
+            document.getElementById('gameWon').style.display = 'none';
+            updateScore();
+        }
+
+        // Webcam functions
+        async function toggleWebcam() {
+            if (!game.webcamActive) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'user' },
+                        audio: false 
+                    });
+                    
+                    game.webcamStream = stream;
+                    game.webcamActive = true;
+                    
+                    const video = document.getElementById('webcamVideo');
+                    video.srcObject = stream;
+                    video.classList.add('active');
+                    
+                    document.getElementById('webcamStatus').textContent = '📸 Webcam: Active - Wave hand to spawn!';
+                    document.getElementById('webcamStatus').style.borderColor = '#00ff88';
+                    document.getElementById('webcamStatus').style.color = '#00ff88';
+                    
+                    // Start hand detection
+                    startHandDetection();
+                    
+                    console.log('Webcam activated');
+                } catch (err) {
+                    console.error('Error accessing webcam:', err);
+                    alert('Could not access webcam. Please allow camera permissions.');
+                }
+            } else {
+                // Stop webcam
+                if (game.webcamStream) {
+                    game.webcamStream.getTracks().forEach(track => track.stop());
+                }
+                
+                game.webcamActive = false;
+                game.webcamStream = null;
+                
+                const video = document.getElementById('webcamVideo');
+                video.srcObject = null;
+                video.classList.remove('active');
+                
+                document.getElementById('webcamStatus').textContent = '📸 Webcam: Inactive';
+                document.getElementById('webcamStatus').style.borderColor = '#00ff88';
+                
+                console.log('Webcam deactivated');
+            }
+        }
+
+        // Improved hand detection using motion and brightness
+        let lastHandRaiseTime = 0;
+        let previousFrame = null;
+        let detectionCanvas = null;
+        let detectionCtx = null;
+        
+        function startHandDetection() {
+            const video = document.getElementById('webcamVideo');
+            
+            // Create detection canvas
+            detectionCanvas = document.createElement('canvas');
+            detectionCtx = detectionCanvas.getContext('2d', { willReadFrequently: true });
+            
+            console.log('Hand detection started - Wave your hand to spawn items!');
+            
+            function detectHand() {
+                if (!game.webcamActive || !video.videoWidth) {
+                    setTimeout(detectHand, 100);
+                    return;
+                }
+                
+                try {
+                    // Set canvas size to match video
+                    if (detectionCanvas.width !== video.videoWidth) {
+                        detectionCanvas.width = video.videoWidth;
+                        detectionCanvas.height = video.videoHeight;
+                    }
+                    
+                    // Draw current frame
+                    detectionCtx.drawImage(video, 0, 0);
+                    
+                    // Get image data from full frame to detect head and hands
+                    const imageData = detectionCtx.getImageData(
+                        0, 0, 
+                        detectionCanvas.width, 
+                        detectionCanvas.height
+                    );
+                    const data = imageData.data;
+                    
+                    // Store current frame data for comparison
+                    const currentFrameData = new Uint8ClampedArray(data);
+                    
+                    // Calculate motion (difference from previous frame)
+                    let motion = 0;
+                    if (previousFrame) {
+                        for (let i = 0; i < data.length; i += 4) {
+                            motion += Math.abs(data[i] - previousFrame[i]);
+                        }
+                        motion = motion / (data.length / 4);
+                    }
+                    
+                    // Store current frame for next comparison
+                    previousFrame = currentFrameData;
+                    
+                    // Detect hand raise based on motion
+                    const now = Date.now();
+                    const timeSinceLastDetection = now - lastHandRaiseTime;
+                    
+                    // Debug: Always log motion level
+                    if (motion > 5) {
+                        console.log(`🔍 Motion detected: ${motion.toFixed(2)}`);
+                    }
+                    
+                    // If significant motion detected and enough time has passed
+                    // Lower threshold for better detection
+                    if (motion > 6 && timeSinceLastDetection > 800) {
+                        lastHandRaiseTime = now;
+                        
+                        // SIMPLE: Only detect hands on SIDES for enemies
+                        const width = detectionCanvas.width;
+                        const leftThird = Math.floor(width / 3);
+                        const rightThird = Math.floor(width * 2 / 3);
+                        
+                        let leftMotion = 0;
+                        let rightMotion = 0;
+                        
+                        // Count motion only on SIDES (hands)
+                        for (let i = 0; i < currentFrameData.length; i += 4) {
+                            const pixelIndex = Math.floor(i / 4);
+                            const x = pixelIndex % width;
+                            const diff = Math.abs(currentFrameData[i] - previousFrame[i]);
+                            
+                            if (x < leftThird) {
+                                leftMotion += diff;  // Left side
+                            } else if (x > rightThird) {
+                                rightMotion += diff;  // Right side
+                            }
+                        }
+                        
+                        const sidesMotion = leftMotion + rightMotion;
+                        
+                        console.log(`\n👋 HAND DETECTION:`);
+                        console.log(`   Left:   ${leftMotion.toFixed(0)}`);
+                        console.log(`   Right:  ${rightMotion.toFixed(0)}`);
+                        console.log(`   Sides Total: ${sidesMotion.toFixed(0)}`);
+                        console.log(`   Decision: 👋 HANDS = ENEMY 👾\n`);
+                        
+                        // ALWAYS spawn enemy when hands detected on sides
+                        document.getElementById('webcamStatus').textContent = '👋 Hands detected! Spawning enemy...';
+                        document.getElementById('webcamStatus').style.color = '#ff4444';
+                        
+                        // Emit enemy spawn (hands on sides)
+                        socket.emit('hand_raised_left', {
+                            type: 'hands',
+                            x: Math.random(),
+                            y: Math.random(),
+                            timestamp: now
+                        });
+                        
+                        setTimeout(() => {
+                            if (game.webcamActive) {
+                                document.getElementById('webcamStatus').textContent = '📸 Webcam: Active - Wave hand to spawn!';
+                                document.getElementById('webcamStatus').style.color = '#00ff88';
+                            }
+                        }, 1000);
+                    }
+                } catch (e) {
+                    console.error('Detection error:', e);
+                }
+                
+                // Continue detection
+                setTimeout(detectHand, 100);  // Check every 100ms for better responsiveness
+            }
+            
+            // Wait for video to be ready
+            if (video.readyState >= 2) {
+                detectHand();
+            } else {
+                video.addEventListener('loadeddata', () => {
+                    console.log('Video ready, starting detection...');
+                    detectHand();
+                }, { once: true });
+            }
+        }
+
+        // Projectile class (poop and pee)
+        class Projectile {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.width = 12;
+                this.height = 12;
+                this.speed = 8;
+                this.type = type;  // 'poop' or 'pee'
+                this.active = true;
+            }
+
+            update() {
+                this.x += this.speed;  // Move right
+                
+                // Remove if off screen
+                if (this.x > canvas.width) {
+                    this.active = false;
+                }
+            }
+
+            draw() {
+                const pixelSize = 3;
+                let pattern, color;
+                
+                if (this.type === 'poop') {
+                    // Poop emoji style 💩
+                    pattern = [
+                        [0,1,1,0],
+                        [1,2,2,1],
+                        [1,2,2,1],
+                        [0,1,1,0]
+                    ];
+                    color = { 1: '#4a2511', 2: '#6b3410' };  // Brown
+                } else {
+                    // Pee droplet 💧
+                    pattern = [
+                        [0,1,0,0],
+                        [1,2,1,0],
+                        [1,2,1,0],
+                        [0,1,0,0]
+                    ];
+                    color = { 1: '#cccc00', 2: '#ffff00' };  // Yellow
+                }
+                
+                for (let row = 0; row < pattern.length; row++) {
+                    for (let col = 0; col < pattern[row].length; col++) {
+                        const pixel = pattern[row][col];
+                        if (pixel === 0) continue;
+                        
+                        ctx.fillStyle = color[pixel];
+                        ctx.fillRect(
+                            this.x + col * pixelSize,
+                            this.y + row * pixelSize,
+                            pixelSize,
+                            pixelSize
+                        );
+                    }
+                }
+            }
+
+            collidesWith(enemy) {
+                return this.x < enemy.x + enemy.width &&
+                       this.x + this.width > enemy.x &&
+                       this.y < enemy.y + enemy.height &&
+                       this.y + this.height > enemy.y;
+            }
+        }
+
+        // Draw cyberpunk Pac-Man
+        let pacmanMouthOpen = 0;
+        let pacmanMouthDirection = 1;
+        
+        function drawCyberpunkPacman(x, y, isFlying) {
+            const size = 40;
+            const centerX = x + size / 2;
+            const centerY = y + size / 2;
+            
+            // Animate mouth
+            pacmanMouthOpen += pacmanMouthDirection * 0.05;
+            if (pacmanMouthOpen > 0.5 || pacmanMouthOpen < 0) {
+                pacmanMouthDirection *= -1;
+            }
+            
+            // Cyberpunk neon colors
+            const neonColor = isFlying ? '#00ffff' : '#ff00ff';  // Cyan or Magenta
+            const glowColor = isFlying ? '#0088ff' : '#ff0088';
+            const accentColor = '#ffff00';  // Yellow accent
+            
+            // Outer glow effect
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = glowColor;
+            
+            // Draw main body (circle with mouth)
+            ctx.beginPath();
+            const mouthAngle = 0.3 + pacmanMouthOpen;
+            ctx.arc(centerX, centerY, size / 2, mouthAngle, Math.PI * 2 - mouthAngle);
+            ctx.lineTo(centerX, centerY);
+            ctx.closePath();
+            
+            // Gradient fill for cyberpunk look
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, size / 2);
+            gradient.addColorStop(0, neonColor);
+            gradient.addColorStop(0.7, glowColor);
+            gradient.addColorStop(1, '#000033');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Neon outline
+            ctx.strokeStyle = neonColor;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // Cyberpunk eye
+            const eyeX = centerX + size / 6;
+            const eyeY = centerY - size / 6;
+            const eyeSize = 6;
+            
+            // Eye glow
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = accentColor;
+            ctx.fillStyle = accentColor;
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Eye inner glow
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, eyeSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Cyberpunk circuit lines on body
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 2;
+            
+            // Circuit pattern
+            ctx.beginPath();
+            ctx.moveTo(centerX - 10, centerY);
+            ctx.lineTo(centerX - 5, centerY);
+            ctx.lineTo(centerX - 5, centerY + 5);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY + 10);
+            ctx.lineTo(centerX, centerY + 5);
+            ctx.lineTo(centerX + 5, centerY + 5);
+            ctx.stroke();
+            
+            // Digital glitch effect when flying
+            if (isFlying && Math.random() > 0.8) {
+                ctx.shadowBlur = 5;
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+                ctx.fillRect(x - 2, y + Math.random() * size, size + 4, 2);
+                ctx.fillStyle = 'rgba(255, 0, 255, 0.3)';
+                ctx.fillRect(x + Math.random() * size, y - 2, 2, size + 4);
+            }
+            
+            // Neon trail particles
+            if (Math.random() > 0.7) {
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = neonColor;
+                const trailX = x - 5 - Math.random() * 10;
+                const trailY = y + Math.random() * size;
+                ctx.beginPath();
+                ctx.arc(trailX, trailY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Scanline effect
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+            for (let i = 0; i < size; i += 4) {
+                ctx.fillRect(x, y + i, size, 1);
+            }
+            
+            ctx.shadowBlur = 0;
+        }
+
+        // Draw survival timer
+        function drawSurvivalTimer() {
+            const timeRemaining = Math.max(0, game.survivalTarget - game.survivalTime);
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = Math.floor(timeRemaining % 60);
+            
+            // Timer box
+            const boxWidth = 180;
+            const boxHeight = 60;
+            const boxX = canvas.width - boxWidth - 20;
+            const boxY = 20;
+            
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(boxX - 5, boxY - 5, boxWidth + 10, boxHeight + 10);
+            
+            // Border
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            
+            // Label
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('⏱️ SURVIVE', boxX + boxWidth/2, boxY + 18);
+            
+            // Timer
+            ctx.font = 'bold 28px Arial';
+            const timeText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Color based on time
+            if (timeRemaining < 10) {
+                ctx.fillStyle = '#ff4444';  // Red - urgent!
+            } else if (timeRemaining < 30) {
+                ctx.fillStyle = '#ffaa00';  // Orange
+            } else {
+                ctx.fillStyle = '#00ff88';  // Green
+            }
+            
+            ctx.fillText(timeText, boxX + boxWidth/2, boxY + 48);
+        }
+
+        // Draw health bar
+        function drawHealthBar() {
+            const barWidth = 200;
+            const barHeight = 25;
+            const barX = 20;
+            const barY = 20;
+            
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(barX - 5, barY - 5, barWidth + 10, barHeight + 10);
+            
+            // Border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, barY, barWidth, barHeight);
+            
+            // Health fill
+            const healthPercent = game.health / game.maxHealth;
+            const fillWidth = barWidth * healthPercent;
+            
+            // Color based on health
+            let healthColor;
+            if (healthPercent > 0.6) {
+                healthColor = '#00ff88';  // Green
+            } else if (healthPercent > 0.3) {
+                healthColor = '#ffaa00';  // Orange
+            } else {
+                healthColor = '#ff4444';  // Red
+            }
+            
+            ctx.fillStyle = healthColor;
+            ctx.fillRect(barX, barY, fillWidth, barHeight);
+            
+            // Health text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${game.health} / ${game.maxHealth}`, barX + barWidth/2, barY + barHeight/2 + 6);
+            
+            // Label
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText('❤️ HEALTH', barX, barY - 10);
+        }
+
+        // Shoot projectile function
+        let lastProjectileType = 'pee';  // Alternate between poop and pee
+        let canShoot = true;  // Cooldown flag
+        
+        function shootProjectile() {
+            if (game.gameOver || game.gameWon || !canShoot) return;
+            
+            // Set cooldown to prevent spam
+            canShoot = false;
+            setTimeout(() => { canShoot = true; }, 200);  // 200ms cooldown
+            
+            // Alternate projectile type
+            const type = lastProjectileType === 'poop' ? 'pee' : 'poop';
+            lastProjectileType = type;
+            
+            // Create projectile from dog's mouth
+            const proj = new Projectile(
+                game.player.x + game.player.width,
+                game.player.y + game.player.height / 2,
+                type
+            );
+            
+            game.projectiles.push(proj);
+            console.log(`💩 Fired ${type}!`);
+        }
+
+        // Play laugh sound when killing enemy
+        function playLaughSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Short laugh sound (hehe)
+            const notes = [
+                {freq: 800, time: 0, duration: 0.08},
+                {freq: 900, time: 0.08, duration: 0.08},
+                {freq: 800, time: 0.16, duration: 0.08}
+            ];
+            
+            notes.forEach(note => {
+                setTimeout(() => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = note.freq;
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + note.duration);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + note.duration);
+                }, note.time * 1000);
+            });
+        }
+
+        // Background music system
+        let backgroundMusic = null;
+        let musicContext = null;
+        let musicGain = null;
+        
+        function startBackgroundMusic() {
+            if (backgroundMusic) return;  // Already playing
+            
+            try {
+                musicContext = new (window.AudioContext || window.webkitAudioContext)();
+                musicGain = musicContext.createGain();
+                musicGain.gain.value = 0.15;  // Low volume for background
+                musicGain.connect(musicContext.destination);
+                
+                backgroundMusic = true;
+                playBackgroundLoop();
+                
+                console.log('🎵 Background music started');
+            } catch (e) {
+                console.error('Could not start background music:', e);
+            }
+        }
+        
+        function playBackgroundLoop() {
+            if (!backgroundMusic || !musicContext) return;
+            
+            // Intriguing underwater/mysterious melody
+            // Using pentatonic scale for mysterious feel
+            const melody = [
+                // Part 1: Descending mysterious theme
+                {note: 'E3', duration: 0.8, time: 0},
+                {note: 'D3', duration: 0.8, time: 0.8},
+                {note: 'C3', duration: 0.8, time: 1.6},
+                {note: 'A2', duration: 1.2, time: 2.4},
+                
+                // Part 2: Rising tension
+                {note: 'C3', duration: 0.6, time: 4.0},
+                {note: 'E3', duration: 0.6, time: 4.6},
+                {note: 'G3', duration: 0.6, time: 5.2},
+                {note: 'A3', duration: 1.0, time: 5.8},
+                
+                // Part 3: Mysterious echo
+                {note: 'G3', duration: 0.8, time: 7.2},
+                {note: 'E3', duration: 0.8, time: 8.0},
+                {note: 'D3', duration: 0.8, time: 8.8},
+                {note: 'C3', duration: 1.6, time: 9.6},
+                
+                // Part 4: Deep bass notes
+                {note: 'A2', duration: 2.0, time: 11.6},
+                {note: 'E2', duration: 2.0, time: 13.6}
+            ];
+            
+            // Note frequencies
+            const frequencies = {
+                'E2': 82.41, 'A2': 110.00, 'C3': 130.81,
+                'D3': 146.83, 'E3': 164.81, 'G3': 196.00,
+                'A3': 220.00
+            };
+            
+            // Play each note
+            melody.forEach(note => {
+                setTimeout(() => {
+                    if (!backgroundMusic) return;
+                    
+                    // Main oscillator (sine wave for smooth underwater feel)
+                    const osc = musicContext.createOscillator();
+                    const oscGain = musicContext.createGain();
+                    
+                    osc.connect(oscGain);
+                    oscGain.connect(musicGain);
+                    
+                    osc.frequency.value = frequencies[note.note];
+                    osc.type = 'sine';
+                    
+                    // Envelope (fade in/out)
+                    const now = musicContext.currentTime;
+                    oscGain.gain.setValueAtTime(0, now);
+                    oscGain.gain.linearRampToValueAtTime(0.3, now + 0.1);
+                    oscGain.gain.setValueAtTime(0.3, now + note.duration - 0.1);
+                    oscGain.gain.linearRampToValueAtTime(0, now + note.duration);
+                    
+                    osc.start(now);
+                    osc.stop(now + note.duration);
+                    
+                    // Add subtle harmony (fifth above)
+                    const harmony = musicContext.createOscillator();
+                    const harmonyGain = musicContext.createGain();
+                    
+                    harmony.connect(harmonyGain);
+                    harmonyGain.connect(musicGain);
+                    
+                    harmony.frequency.value = frequencies[note.note] * 1.5;  // Perfect fifth
+                    harmony.type = 'sine';
+                    
+                    harmonyGain.gain.setValueAtTime(0, now);
+                    harmonyGain.gain.linearRampToValueAtTime(0.1, now + 0.1);
+                    harmonyGain.gain.setValueAtTime(0.1, now + note.duration - 0.1);
+                    harmonyGain.gain.linearRampToValueAtTime(0, now + note.duration);
+                    
+                    harmony.start(now);
+                    harmony.stop(now + note.duration);
+                    
+                }, note.time * 1000);
+            });
+            
+            // Loop the melody (16 seconds total)
+            setTimeout(() => {
+                if (backgroundMusic) {
+                    playBackgroundLoop();
+                }
+            }, 16000);
+        }
+        
+        function stopBackgroundMusic() {
+            backgroundMusic = false;
+            if (musicGain) {
+                musicGain.gain.linearRampToValueAtTime(0, musicContext.currentTime + 0.5);
+            }
+            console.log('🎵 Background music stopped');
+        }
+        
+        // Start music when user interacts (browser requirement)
+        document.addEventListener('click', () => {
+            if (!backgroundMusic) {
+                startBackgroundMusic();
+            }
+        }, { once: true });
+        
+        document.addEventListener('keydown', () => {
+            if (!backgroundMusic) {
+                startBackgroundMusic();
+            }
+        }, { once: true });
+
+        // Start game
+        gameLoop();
+        updateScore();
+        
+        // Auto-start webcam on page load
+        setTimeout(() => {
+            console.log('🎥 Auto-starting webcam...');
+            toggleWebcam();
+        }, 1000);  // Wait 1 second for page to fully load
+        
+        // Auto-spawn collectibles every 3-5 seconds
+        setInterval(() => {
+            if (!game.gameOver && game.collectibles.length < 5) {
+                const x = 50 + Math.random() * (canvas.width - 100);
+                const y = 50 + Math.random() * (canvas.height - 150);
+                const collectible = new Collectible(x, y);
+                game.collectibles.push(collectible);
+                console.log(`🍣 Collectible spawned at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+            }
+        }, 3000 + Math.random() * 2000);  // Every 3-5 seconds
+        
+        // Spawn initial collectibles
+        setTimeout(() => {
+            for (let i = 0; i < 3; i++) {
+                const x = 50 + Math.random() * (canvas.width - 100);
+                const y = 50 + Math.random() * (canvas.height - 150);
+                const collectible = new Collectible(x, y);
+                game.collectibles.push(collectible);
+                console.log(`🍣 Initial collectible ${i+1} spawned`);
+            }
+        }, 2000);  // Spawn 3 initial collectibles after 2 seconds
+    </script>
+</body>
+</html>

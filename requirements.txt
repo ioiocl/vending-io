@@ -1,0 +1,36 @@
+# Music-IO Requirements
+# Python 3.11+
+
+# Audio processing
+pyaudio>=0.2.11
+numpy
+
+# Serial communication with Arduino
+pyserial>=3.5
+
+# Thermal printer (Windows printer API)
+pywin32>=306  # Required for Windows printer support
+
+# Web visualizer
+flask>=2.3.0
+flask-socketio>=5.3.0
+python-socketio>=5.9.0
+
+# Solana blockchain integration
+solana>=0.30.0
+solders>=0.18.0
+anchorpy>=0.18.0
+qrcode>=7.4.2
+Pillow>=10.0.0
+base58>=2.1.1
+
+# Webcam hand detection (optional - not required, browser does detection)
+# Note: Webcam works WITHOUT these packages using browser-based detection
+# Uncomment only if you want Python-based detection:
+# opencv-python>=4.8.0
+# mediapipe>=0.10.0  # Only works with Python 3.11 or lower
+
+# Development dependencies (optional)
+# pytest==7.4.0
+# black==23.7.0
+# flake8==6.1.0

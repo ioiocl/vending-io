@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IOIO Payment Test - Solana Devnet</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            margin-top: 10px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .qr-container img {
+            max-width: 300px;
+            border: 5px solid white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .payment-url {
+            margin-top: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            word-break: break-all;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .session-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .session-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .session-info strong {
+            color: #667eea;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-content h3 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .step-content p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .emoji {
+            font-size: 1.5em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><span class="emoji">🪙</span> IOIO Payment Test</h1>
+            <p>Test Solana Pay integration on Devnet</p>
+        </div>
+
+        <!-- Step 1: Configuration -->
+        <div class="card" id="config-card">
+            <h2><span class="emoji">⚙️</span> Step 1: Configure Blockchain</h2>
+            <p style="margin-bottom: 20px; color: #666;">
+                Enter your Solana Devnet details from Solana Playground
+            </p>
+
+            <div class="form-group">
+                <label for="program-id">Program ID</label>
+                <input type="text" id="program-id" placeholder="e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU">
+                <small>Get this after deploying smart contract in Solana Playground</small>
+            </div>
+
+            <div class="form-group">
+                <label for="token-mint">IOIO Token Mint Address</label>
+                <input type="text" id="token-mint" placeholder="e.g., 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU">
+                <small>Get this after creating IOIO token</small>
+            </div>
+
+            <div class="form-group">
+                <label for="game-wallet">Game Wallet Address</label>
+                <input type="text" id="game-wallet" placeholder="e.g., 5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9">
+                <small>Your wallet address from Solana Playground</small>
+            </div>
+
+            <button class="btn" onclick="configure()">Configure Adapter</button>
+
+            <div id="config-status" class="hidden"></div>
+        </div>
+
+        <!-- Step 2: Generate Payment -->
+        <div class="card hidden" id="payment-card">
+            <h2><span class="emoji">💳</span> Step 2: Generate Payment QR</h2>
+
+            <div class="form-group">
+                <label for="amount">Amount (IOIO Tokens)</label>
+                <input type="number" id="amount" value="1.0" step="0.01" min="0.01">
+            </div>
+
+            <button class="btn" onclick="generatePayment()">Generate QR Code</button>
+
+            <div id="payment-status" class="hidden"></div>
+
+            <div id="qr-display" class="hidden">
+                <div class="qr-container">
+                    <img id="qr-image" src="" alt="Payment QR Code">
+                    <div class="payment-url" id="payment-url"></div>
+                </div>
+
+                <div class="session-info">
+                    <p><strong>Session ID:</strong> <span id="session-id"></span></p>
+                    <p><strong>Amount:</strong> <span id="payment-amount"></span> IOIO</p>
+                    <p><strong>Status:</strong> <span id="payment-status-text">Waiting for payment...</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Game Flow -->
+        <div class="card hidden" id="game-card">
+            <h2><span class="emoji">🎮</span> Step 3: Game Flow</h2>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Payment Confirmed</h3>
+                    <p>User has paid, waiting for button press...</p>
+                </div>
+            </div>
+
+            <button class="btn" onclick="startGame()" id="start-game-btn" disabled>
+                Press Physical Button (Simulated)
+            </button>
+
+            <div class="step hidden" id="game-started-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Game Started</h3>
+                    <p>User is playing the game...</p>
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="score-input">
+                <label for="score">Final Score</label>
+                <input type="number" id="score" value="100" min="0">
+            </div>
+
+            <button class="btn btn-secondary hidden" onclick="submitScore()" id="submit-score-btn">
+                Submit Score
+            </button>
+
+            <div id="game-status" class="hidden"></div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="card">
+            <h2><span class="emoji">📖</span> Instructions</h2>
+            <ol style="padding-left: 20px; color: #666;">
+                <li style="margin: 10px 0;">Deploy smart contract in Solana Playground</li>
+                <li style="margin: 10px 0;">Create IOIO token on Devnet</li>
+                <li style="margin: 10px 0;">Copy Program ID, Token Mint, and Wallet Address</li>
+                <li style="margin: 10px 0;">Configure this test page with those values</li>
+                <li style="margin: 10px 0;">Generate QR code and test payment flow</li>
+                <li style="margin: 10px 0;">Use Phantom wallet (Devnet mode) to scan and pay</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentSessionId = null;
+
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+        });
+
+        socket.on('payment_confirmed', (data) => {
+            console.log('✅ Payment confirmed:', data);
+            showStatus('payment-status', 'Payment confirmed! ✅', 'success');
+            document.getElementById('payment-status-text').textContent = 'Paid ✅';
+            
+            // Enable game card
+            document.getElementById('game-card').classList.remove('hidden');
+            document.getElementById('start-game-btn').disabled = false;
+        });
+
+        socket.on('payment_status', (data) => {
+            console.log('⏳ Payment status:', data);
+            document.getElementById('payment-status-text').textContent = 
+                `Waiting... (${data.elapsed}s)`;
+        });
+
+        socket.on('payment_timeout', (data) => {
+            console.log('⏱️ Payment timeout:', data);
+            showStatus('payment-status', 'Payment timeout ⏱️', 'warning');
+            document.getElementById('payment-status-text').textContent = 'Timeout ⏱️';
+        });
+
+        async function configure() {
+            const programId = document.getElementById('program-id').value.trim();
+            const tokenMint = document.getElementById('token-mint').value.trim();
+            const gameWallet = document.getElementById('game-wallet').value.trim();
+
+            if (!programId || !tokenMint || !gameWallet) {
+                showStatus('config-status', 'Please fill all fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/configure', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        program_id: programId,
+                        token_mint: tokenMint,
+                        game_wallet: gameWallet
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('config-status', '✅ Configuration successful!', 'success');
+                    document.getElementById('payment-card').classList.remove('hidden');
+                } else {
+                    showStatus('config-status', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('config-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function generatePayment() {
+            const amount = parseFloat(document.getElementById('amount').value);
+
+            if (amount <= 0) {
+                showStatus('payment-status', 'Amount must be greater than 0', 'error');
+                return;
+            }
+
+            showStatus('payment-status', 'Generating QR code...', 'info');
+
+            try {
+                const response = await fetch('/api/generate_payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentSessionId = data.session_id;
+                    
+                    // Display QR code
+                    document.getElementById('qr-image').src = data.qr_code;
+                    document.getElementById('payment-url').textContent = data.payment_url;
+                    document.getElementById('session-id').textContent = data.session_id;
+                    document.getElementById('payment-amount').textContent = data.amount;
+                    
+                    document.getElementById('qr-display').classList.remove('hidden');
+                    showStatus('payment-status', '✅ QR Code generated! Scan with Phantom wallet', 'success');
+                } else {
+                    showStatus('payment-status', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('payment-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function startGame() {
+            if (!currentSessionId) return;
+
+            try {
+                const response = await fetch(`/api/start_game/${currentSessionId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('game-started-step').classList.remove('hidden');
+                    document.getElementById('score-input').classList.remove('hidden');
+                    document.getElementById('submit-score-btn').classList.remove('hidden');
+                    document.getElementById('start-game-btn').disabled = true;
+                    showStatus('game-status', '✅ Game started!', 'success');
+                } else {
+                    showStatus('game-status', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('game-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function submitScore() {
+            if (!currentSessionId) return;
+
+            const score = parseInt(document.getElementById('score').value);
+
+            try {
+                const response = await fetch(`/api/submit_score/${currentSessionId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ score })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('game-status', `✅ Score submitted: ${data.score}`, 'success');
+                    document.getElementById('submit-score-btn').disabled = true;
+                } else {
+                    showStatus('game-status', `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus('game-status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
