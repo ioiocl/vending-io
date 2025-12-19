@@ -3,6 +3,8 @@ Thermal Printer Output Adapter
 Prints thank you messages via Windows printer API
 """
 import logging
+import serial
+import serial.tools.list_ports
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -101,7 +103,7 @@ class ThermalPrinterAdapter:
             logger.error(f"Error during auto-detection: {e}")
             return None
     
-    def print_thank_you(self) -> bool:
+    def print_thank_you(self, score: Optional[int] = None, ascii_line: Optional[str] = None, poem: Optional[str] = None) -> bool:
         """
         Print thank you message
         
@@ -154,6 +156,15 @@ class ThermalPrinterAdapter:
                 ser.write('Gracias por jugar\n'.encode('cp437'))
                 ser.write('con nosotros\n'.encode('cp437'))
                 ser.write(b'\n')
+
+                if score is not None:
+                    ser.write((f'Puntaje: {score}\n').encode('cp437', errors='replace'))
+                if ascii_line:
+                    ser.write((f'{ascii_line}\n').encode('cp437', errors='replace'))
+                if poem:
+                    ser.write((f'{poem}\n').encode('cp437', errors='replace'))
+                if score is not None or ascii_line or poem:
+                    ser.write(b'\n')
                 ser.write('Atentamente,\n'.encode('cp437'))
                 ser.write(BOLD_ON)
                 ser.write(b'IOIO\n')

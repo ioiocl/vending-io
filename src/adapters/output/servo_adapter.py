@@ -42,6 +42,9 @@ class ServoAdapter:
         
         # Thermal printer adapter reference (set externally)
         self.printer_adapter = None
+
+        self._last_game_receipt = None
+        self._receipt_printed = False
         
         # Callbacks for status updates
         self._status_callback: Optional[Callable] = None
@@ -50,6 +53,36 @@ class ServoAdapter:
         self._relay_callback: Optional[Callable] = None
         
         logger.info(f"Servo Adapter initialized on {port} @ {baud_rate} baud")
+
+    def set_last_game_receipt(self, score: int, ascii_line: str, poem: str):
+        self._last_game_receipt = {
+            'score': score,
+            'ascii_line': ascii_line,
+            'poem': poem
+        }
+        self._receipt_printed = False
+
+    def _print_receipt_once(self) -> bool:
+        if self._receipt_printed:
+            logger.info("Receipt already printed for this game - skipping")
+            return True
+
+        if not self.printer_adapter:
+            logger.warning("No printer adapter available")
+            return False
+
+        if self._last_game_receipt:
+            ok = self.printer_adapter.print_thank_you(
+                score=self._last_game_receipt.get('score'),
+                ascii_line=self._last_game_receipt.get('ascii_line'),
+                poem=self._last_game_receipt.get('poem')
+            )
+        else:
+            ok = self.printer_adapter.print_thank_you()
+
+        if ok:
+            self._receipt_printed = True
+        return ok
     
     def initialize(self) -> bool:
         """
@@ -118,6 +151,10 @@ class ServoAdapter:
     
     def _on_pump_deactivation_complete(self):
         """Called when pump has finished deactivating (releasing object)"""
+        if self._receipt_printed:
+            logger.info("Pump deactivation callback received but receipt already printed - skipping")
+            return
+
         logger.info("\n" + "="*60)
         logger.info("CALLBACK TRIGGERED: Pump deactivation complete - triggering printer")
         logger.info("="*60)
@@ -129,7 +166,7 @@ class ServoAdapter:
             logger.info(f"Printer adapter found: {self.printer_adapter}")
             print(f"🖨️  Printer adapter: {self.printer_adapter.get_printer_info()}")
             print("📝 Starting print job...")
-            result = self.printer_adapter.print_thank_you()
+            result = self._print_receipt_once()
             if result:
                 print("✅ Print job completed!")
             else:
@@ -230,6 +267,9 @@ class ServoAdapter:
                 
                 # Special handling for sequence_complete (WIN finished)
                 if status == 'sequence_complete':
+                    if self._receipt_printed:
+                        logger.info("sequence_complete received but receipt already printed - skipping")
+                        return
                     print("\n" + "="*60)
                     print("🏆 WIN SEQUENCE COMPLETE!")
                     print("🖨️  PRINTING THANK YOU MESSAGE...")
@@ -237,7 +277,7 @@ class ServoAdapter:
                     
                     # Trigger printer when win sequence is complete
                     if self.printer_adapter:
-                        result = self.printer_adapter.print_thank_you()
+                        result = self._print_receipt_once()
                         if result:
                             print("✅ Print job completed!")
                         else:

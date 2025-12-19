@@ -111,7 +111,7 @@ class ThermalPrinterAdapter:
             logger.error(f"Error during printer detection: {e}")
             return None
     
-    def print_thank_you(self) -> bool:
+    def print_thank_you(self, score: Optional[int] = None, ascii_line: Optional[str] = None, poem: Optional[str] = None) -> bool:
         """
         Print thank you message using Windows printer API
         
@@ -163,6 +163,16 @@ class ThermalPrinterAdapter:
             data.extend('Gracias por jugar\n'.encode('cp437'))
             data.extend('con nosotros\n'.encode('cp437'))
             data.extend(b'\n')
+
+            if score is not None:
+                data.extend((f'Puntaje: {score}\n').encode('cp437', errors='replace'))
+            if ascii_line:
+                data.extend((f'{ascii_line}\n').encode('cp437', errors='replace'))
+            if poem:
+                data.extend((f'{poem}\n').encode('cp437', errors='replace'))
+            if score is not None or ascii_line or poem:
+                data.extend(b'\n')
+
             data.extend('Atentamente,\n'.encode('cp437'))
             data.extend(BOLD_ON)
             data.extend(b'IOIO\n')

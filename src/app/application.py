@@ -3,6 +3,11 @@ Application Layer - Orchestrates the hexagonal architecture
 This is where all the pieces come together
 """
 import logging
+import os
+import random
+import urllib.request
+import urllib.error
+import json
 from typing import Optional
 
 from src.adapters.input.arduino_adapter import ArduinoAdapter
@@ -431,9 +436,16 @@ class MusicMachineApplication:
         Activates servo based on final score
         """
         score = data.get('score', 0)
+        ascii_line = self._random_ascii_art()
+        poem = self._generate_short_poem(score)
         logger.info(f"🏁 Game over! Final score: {score}")
         print("\n" + "="*60)
         print(f"🏁 GAME OVER - Final Score: {score}")
+        print(f"🎯 Puntaje obtenido: {score}")
+        print("🧩")
+        print(ascii_line)
+        if poem:
+            print(f"📝 {poem}")
         print("="*60)
         
         self._game_active = False
@@ -442,12 +454,119 @@ class MusicMachineApplication:
         # Activate servo based on score
         if self.servo_adapter:
             logger.info(f"Activating servo motor based on score: {score}")
+            if hasattr(self.servo_adapter, 'set_last_game_receipt'):
+                self.servo_adapter.set_last_game_receipt(score=score, ascii_line=ascii_line, poem=poem)
             print(f"📤 Sending score {score} to servo adapter...")
             result = self.servo_adapter.activate_motor_by_score(score)
             print(f"   Result: {'✅ Success' if result else '❌ Failed'}")
         else:
             logger.warning("No servo adapter available!")
             print("⚠️  WARNING: No servo adapter available!")
+
+    def _random_ascii_art(self) -> str:
+        arts = [
+            ["(=^.^=)"],
+            ["[o_o]"],
+            ["<(\"\"<)"],
+            ["  \\_/", " (o o)", "  >^<"],
+            ["  /\\_/\\", " ( o.o )", "  > ^ <"],
+            ["  _____", " /     \\", "|  RIP  |", "|  IOIO |", "|_______|"],
+            ["  .----.", " / .--. \\", "| |  | |", " \\ '--' /", "  '----'"],
+            ["   ____", "  / __ \\", " / /  \\\\ ", "| |    | |", " \\_\\__/ /"],
+        ]
+        art = random.choice(arts)
+        # Guarantee 1..5 lines
+        if len(art) > 5:
+            art = art[:5]
+        return "\n".join(art)
+
+    def _read_properties(self, file_path: str) -> dict:
+        props = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' not in line:
+                        continue
+                    k, v = line.split('=', 1)
+                    props[k.strip()] = v.strip()
+        except FileNotFoundError:
+            return {}
+        except Exception as e:
+            logger.warning(f"Failed to read properties from {file_path}: {e}")
+            return {}
+        return props
+
+    def _generate_short_poem(self, score: int) -> str:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        config_path = os.path.join(repo_root, 'config.properties')
+        props = self._read_properties(config_path)
+        api_key = props.get('OPENAI_API_KEY') or os.environ.get('OPENAI_API_KEY')
+        model = props.get('OPENAI_MODEL') or 'gpt-4o-mini'
+        if not api_key:
+            logger.warning(f"OPENAI_API_KEY missing. Looked in: {config_path} (and environment variable OPENAI_API_KEY)")
+            return ""
+
+        themes = [
+            "lluvia en la ventana",
+            "un tren nocturno",
+            "mar y sal",
+            "una ciudad vacia",
+            "cafe recien hecho",
+            "un bosque con niebla",
+            "un abrazo que llega tarde",
+            "una estrella fugaz",
+            "papel y tinta",
+            "un perro durmiendo al sol",
+        ]
+        theme = random.choice(themes)
+        prompt = (
+            "Escribe un poema MUY corto en español de máximo 20 palabras. "
+            "Debe ser aleatorio y no debe tener relacion con juegos, puntajes, numeros o competicion. "
+            f"Tema sugerido: {theme}. "
+            "No menciones puntaje, ni numeros, ni niveles, ni victoria/derrota. "
+            "Solo el poema, sin comillas."
+        )
+
+        try:
+            url = "https://api.openai.com/v1/chat/completions"
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 60,
+                "temperature": 1.1
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                text = (((data.get('choices') or [{}])[0].get('message') or {}).get('content') or "").strip()
+                words = text.split()
+                if len(words) > 20:
+                    text = " ".join(words[:20]).strip()
+                return text
+
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode('utf-8', errors='replace')
+            except Exception:
+                body = ''
+            logger.warning(f"OpenAI HTTPError {e.code}: {body}")
+            return ""
+
+        except Exception as e:
+            logger.warning(f"Failed to generate poem via OpenAI: {e}")
+            return ""
     
     def test_audio(self):
         """Test audio output with a simple tone"""
