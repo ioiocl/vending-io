@@ -305,7 +305,7 @@ void performWinSequence() {
   // --------------------------------
   Serial.println("{\"status\":\"360_servo_sequence\"}");
   pca.setPWM(SERVO360, 0, PWM_RIGHT_FAST);
-  delay(5000);
+  delay(6000);
 
   // --------------------------------
   // STEP 2 — STOP (neutral)
@@ -315,14 +315,14 @@ void performWinSequence() {
     pca.setPWM(SERVO360, 0, PWM_STOP);
     delay(10);
   }
-  delay(2000);
+  delay(3000);
 
   // --------------------------------
   // STEP 3 — FAST LEFT ROTATION
   // --------------------------------
   Serial.println("{\"status\":\"360_servo_left\"}");
   pca.setPWM(SERVO360, 0, PWM_LEFT_FAST);
-  delay(4300);
+  delay(3000);
 
   // --------------------------------
   // FINAL STOP

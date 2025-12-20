@@ -9,6 +9,7 @@ import serial.tools.list_ports
 import time
 import threading
 import json
+from datetime import datetime
 from typing import Optional, Callable
 
 logger = logging.getLogger(__name__)
@@ -381,8 +382,8 @@ class ServoAdapter:
         
         Args:
             score: Game score
-                < 10: User lost - send LOSE command
-                >= 10: User won - send WIN command to trigger full sequence
+                < 100: User lost - send LOSE command
+                >= 100: User won - send WIN command to trigger full sequence
         """
         print("\n" + "="*60)
         print(f"🤖 GAME RESULT - SCORE: {score}")
@@ -398,9 +399,66 @@ class ServoAdapter:
             print("❌ ERROR: Serial connection not open!")
             return False
         
-        if score < 10:
-            print(f"😢 Score {score} < 10: USER LOST")
-            logger.info(f"Score {score} < 10: Sending LOSE command")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        if score < 250:
+            print(f"😢 Score {score} < 100: USER LOST")
+            print(f"🕐 Timestamp: {timestamp}")
+            print("\n" + "="*60)
+            print("📜 POEMA DE LA RESILIENCIA")
+            print("="*60)
+            print()
+            print("  Caer no es el final, es solo un paso,")
+            print("  cada intento te acerca al éxito acaso.")
+            print("  La derrota es maestra, no enemiga,")
+            print("  y el fracaso, semilla que se abriga.")
+            print()
+            print("  Levántate de nuevo, con más fuerza,")
+            print("  cada caída te hace más experto en la destreza.")
+            print("  El campeón no es quien nunca cae,")
+            print("  sino quien siempre se levanta, sin que nada lo desmaye.")
+            print()
+            print(f"  Tu puntaje: {score} puntos")
+            print("  ¡Inténtalo de nuevo! 💪")
+            print()
+            print("="*60 + "\n")
+            
+            # Imprimir poema en la impresora térmica
+            if self.printer_adapter:
+                poem_text = (
+                    f"Timestamp: {timestamp}\n\n"
+                    "POEMA DE LA RESILIENCIA\n"
+                    "========================\n\n"
+                    "Caer no es el final,\n"
+                    "es solo un paso,\n"
+                    "cada intento te acerca\n"
+                    "al exito acaso.\n\n"
+                    "La derrota es maestra,\n"
+                    "no enemiga,\n"
+                    "y el fracaso, semilla\n"
+                    "que se abriga.\n\n"
+                    "Levantate de nuevo,\n"
+                    "con mas fuerza,\n"
+                    "cada caida te hace\n"
+                    "mas experto en la destreza.\n\n"
+                    "El campeon no es quien\n"
+                    "nunca cae,\n"
+                    "sino quien siempre\n"
+                    "se levanta,\n"
+                    "sin que nada lo desmaye.\n\n"
+                    f"Tu puntaje: {score} puntos\n"
+                    "Intentalo de nuevo!"
+                )
+                print("🖨️  Imprimiendo poema de resiliencia...")
+                result = self.printer_adapter.print_thank_you(score=score, poem=poem_text)
+                if result:
+                    print("✅ Poema impreso en impresora térmica!")
+                else:
+                    print("❌ Error al imprimir poema")
+            else:
+                print("⚠️  No hay impresora térmica conectada")
+            
+            logger.info(f"Score {score} < 100: Sending LOSE command at {timestamp}")
             try:
                 self.serial_connection.write(b"LOSE\n")
                 self.serial_connection.flush()
@@ -411,14 +469,16 @@ class ServoAdapter:
                 print(f"❌ Error sending LOSE: {e}")
                 return False
         else:
-            print(f"🏆 Score {score} >= 10: USER WON!")
+            print(f"🏆 Score {score} >= 100: USER WON!")
+            print(f"🕐 Timestamp: {timestamp}")
+            print(f"🎯 Puntaje obtenido: {score} puntos")
             print("   Triggering full win sequence:")
             print("   → 360° servo dance")
             print("   → Arm pick down")
             print("   → Suction pump activation")
             print("   → Arm lift with object")
             print("   → Release")
-            logger.info(f"Score {score} >= 10: Sending WIN command to Stage 1")
+            logger.info(f"Score {score} >= 100: Sending WIN command to Stage 1 at {timestamp}")
             try:
                 self.serial_connection.write(b"WIN\n")
                 self.serial_connection.flush()

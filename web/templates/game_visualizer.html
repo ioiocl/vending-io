@@ -377,6 +377,11 @@
             pulses: [],
             collectibles: [],
             enemies: [],
+            submarines: [],
+            soccerBalls: [],
+            nextSubmarineSpawnAt: Date.now() + 2000,
+            boats: [],
+            nextBoatSpawnAt: Date.now() + 5000,
             score: 0,
             pulsesJumped: 0,
             combo: 0,
@@ -388,6 +393,7 @@
             gameStarted: false,  // NEW: Game only starts when Arduino button is pressed
             survivalTime: 0,
             survivalTarget: 60,  // 60 seconds to win
+            scoreTarget: 500,
             startTime: Date.now(),
             projectiles: [],  // Poop and pee projectiles
             gravity: 0.8,
@@ -676,6 +682,306 @@
                 }
                 
                 ctx.globalAlpha = 1.0;  // Reset opacity
+            }
+
+            collidesWith(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+
+        class Boat {
+            constructor(side) {
+                this.side = side;
+
+                this.width = 220 + Math.floor(Math.random() * 220);
+                this.height = 55 + Math.floor(Math.random() * 25);
+                this.y = 40 + Math.floor(Math.random() * 80);
+                this.speed = 1.5 + Math.random() * 1.8;
+
+                this.x = side === 'left' ? -this.width - 50 : canvas.width + 50;
+                this.vx = side === 'left' ? this.speed : -this.speed;
+
+                this.variant = Math.floor(Math.random() * 4);
+                this.alive = true;
+                this.spawnTime = Date.now();
+                this.lifetime = 14000;
+
+                this.propSpin = Math.random() * Math.PI * 2;
+                this.hullColor = ['#0f172a', '#111827', '#1f2937', '#0b132b'][Math.floor(Math.random() * 4)];
+                this.rustColor = ['#9a3412', '#b45309', '#92400e'][Math.floor(Math.random() * 3)];
+            }
+
+            update() {
+                const age = Date.now() - this.spawnTime;
+                if (age >= this.lifetime) {
+                    this.alive = false;
+                    return;
+                }
+
+                this.x += this.vx;
+                this.propSpin += 0.35;
+
+                if (this.x < -this.width - 200 || this.x > canvas.width + 200) {
+                    this.alive = false;
+                }
+            }
+
+            draw() {
+                ctx.save();
+
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+
+                // Hull underside silhouette
+                ctx.fillStyle = this.hullColor;
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, 18);
+                ctx.fill();
+
+                // Rust streaks
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 0.55;
+                ctx.fillStyle = this.rustColor;
+                for (let i = 0; i < 6; i++) {
+                    const rx = this.x + 20 + Math.random() * (this.width - 40);
+                    const rw = 6 + Math.random() * 10;
+                    const rh = 10 + Math.random() * 22;
+                    ctx.fillRect(rx, this.y + this.height - rh, rw, rh);
+                }
+                ctx.globalAlpha = 1.0;
+
+                // Keel + propeller variants
+                const keelX = this.x + this.width * (0.45 + (this.variant % 2) * 0.1);
+                const keelW = 22 + (this.variant === 2 ? 12 : 0);
+                const keelH = 35 + (this.variant === 3 ? 18 : 0);
+                ctx.fillStyle = '#0a2540';
+                ctx.beginPath();
+                ctx.roundRect(keelX, this.y + this.height - 6, keelW, keelH, 8);
+                ctx.fill();
+
+                // Propellers
+                const propCount = this.variant === 0 ? 1 : (this.variant === 3 ? 3 : 2);
+                for (let p = 0; p < propCount; p++) {
+                    const px = keelX + keelW / 2 + (p - (propCount - 1) / 2) * 26;
+                    const py = this.y + this.height + keelH - 10;
+                    this.drawPropeller(px, py, 10 + p * 1.5);
+                }
+
+                // Tiny label (subtle)
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('HULL', this.x + this.width / 2, this.y - 6);
+
+                ctx.restore();
+            }
+
+            drawPropeller(x, y, r) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(this.propSpin);
+
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00ffff';
+
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+                ctx.stroke();
+
+                const blades = 3;
+                for (let i = 0; i < blades; i++) {
+                    ctx.save();
+                    ctx.rotate((i * Math.PI * 2) / blades);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(r, 0);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(r, 0, 3.0, -0.8, 0.8);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+
+            collidesWith(player) {
+                // Simple AABB against the full hazard silhouette (hull + keel area)
+                const hazardX = this.x;
+                const hazardY = this.y;
+                const hazardW = this.width;
+                const hazardH = this.height + 70;
+
+                return player.x < hazardX + hazardW &&
+                       player.x + player.width > hazardX &&
+                       player.y < hazardY + hazardH &&
+                       player.y + player.height > hazardY;
+            }
+        }
+
+        class SoccerBall {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = 10;
+                this.active = true;
+                this.spawnTime = Date.now();
+                this.lifetime = 6000;
+                this.spin = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                const age = Date.now() - this.spawnTime;
+                if (age >= this.lifetime) {
+                    this.active = false;
+                    return;
+                }
+
+                this.x += this.vx;
+                this.y += this.vy;
+                this.spin += 0.25;
+
+                if (this.x < -50 || this.x > canvas.width + 50 || this.y < -50 || this.y > canvas.height + 50) {
+                    this.active = false;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.spin);
+
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffffff';
+
+                ctx.fillStyle = '#f8f8f8';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#111111';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = '#111111';
+                ctx.beginPath();
+                ctx.moveTo(-3, -2);
+                ctx.lineTo(0, -5);
+                ctx.lineTo(3, -2);
+                ctx.lineTo(2, 2);
+                ctx.lineTo(-2, 2);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+
+            collidesWith(player) {
+                const closestX = Math.max(player.x, Math.min(this.x, player.x + player.width));
+                const closestY = Math.max(player.y, Math.min(this.y, player.y + player.height));
+                const dx = this.x - closestX;
+                const dy = this.y - closestY;
+                return (dx * dx + dy * dy) <= (this.radius * this.radius);
+            }
+        }
+
+        class Submarine {
+            constructor(x, y, side) {
+                this.x = x;
+                this.y = y;
+                this.side = side;
+                this.width = 70;
+                this.height = 26;
+                this.speed = 1.4 + Math.random() * 1.2;
+                this.alive = true;
+                this.spawnTime = Date.now();
+                this.lifetime = 9000;
+                this.lastShotAt = 0;
+                this.nextShotDelay = 600 + Math.random() * 900;
+                this.hullColor = ['#ffcc00', '#00ffff', '#ff00ff', '#00ff88'][Math.floor(Math.random() * 4)];
+            }
+
+            update() {
+                const age = Date.now() - this.spawnTime;
+                if (age >= this.lifetime) {
+                    this.alive = false;
+                    return;
+                }
+
+                if (this.side === 'left') {
+                    this.x += this.speed;
+                } else if (this.side === 'right') {
+                    this.x -= this.speed;
+                } else if (this.side === 'top') {
+                    this.y += this.speed;
+                } else {
+                    this.y -= this.speed;
+                }
+
+                this.x = Math.max(-100, Math.min(canvas.width + 100, this.x));
+                this.y = Math.max(-100, Math.min(canvas.height + 100, this.y));
+
+                const now = Date.now();
+                if (now - this.lastShotAt >= this.nextShotDelay) {
+                    this.lastShotAt = now;
+                    this.nextShotDelay = 600 + Math.random() * 900;
+                    this.shootAtPlayer();
+                }
+            }
+
+            shootAtPlayer() {
+                const originX = this.x + this.width / 2;
+                const originY = this.y + this.height / 2;
+                const targetX = game.player.x + game.player.width / 2;
+                const targetY = game.player.y + game.player.height / 2;
+
+                const dx = targetX - originX;
+                const dy = targetY - originY;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+                const speed = 4.2 + Math.random() * 2.0;
+                const vx = (dx / dist) * speed;
+                const vy = (dy / dist) * speed;
+
+                game.soccerBalls.push(new SoccerBall(originX, originY, vx, vy));
+            }
+
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = this.hullColor;
+
+                ctx.fillStyle = this.hullColor;
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, 12);
+                ctx.fill();
+
+                ctx.fillStyle = '#0a2540';
+                ctx.beginPath();
+                ctx.arc(this.x + 16, this.y + this.height / 2, 4, 0, Math.PI * 2);
+                ctx.arc(this.x + 30, this.y + this.height / 2, 4, 0, Math.PI * 2);
+                ctx.arc(this.x + 44, this.y + this.height / 2, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('SUB', this.x + this.width / 2, this.y - 5);
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
             }
 
             collidesWith(player) {
@@ -1187,8 +1493,8 @@
             // Update survival timer
             game.survivalTime = (Date.now() - game.startTime) / 1000;  // seconds
             
-            // Check if player survived 60 seconds - VICTORY!
-            if (game.survivalTime >= game.survivalTarget) {
+            // Win if player survived target time OR reached target score
+            if (game.survivalTime >= game.survivalTarget || game.score >= game.scoreTarget) {
                 winGame();
                 return;
             }
@@ -1338,6 +1644,98 @@
                 }
             }
 
+            // Spawn submarines randomly over time
+            const now = Date.now();
+            if (now >= game.nextSubmarineSpawnAt) {
+                const sideRoll = Math.random();
+                let x, y, side;
+                if (sideRoll < 0.25) {
+                    side = 'left';
+                    x = -80;
+                    y = Math.random() * (game.groundY - 140) + 40;
+                } else if (sideRoll < 0.5) {
+                    side = 'right';
+                    x = canvas.width + 80;
+                    y = Math.random() * (game.groundY - 140) + 40;
+                } else if (sideRoll < 0.75) {
+                    side = 'top';
+                    x = Math.random() * (canvas.width - 120) + 60;
+                    y = -60;
+                } else {
+                    side = 'bottom';
+                    x = Math.random() * (canvas.width - 120) + 60;
+                    y = canvas.height + 60;
+                }
+
+                if (game.submarines.length < 3) {
+                    game.submarines.push(new Submarine(x, y, side));
+                }
+
+                game.nextSubmarineSpawnAt = now + 1500 + Math.random() * 2500;
+            }
+
+            // Update submarines
+            for (let i = game.submarines.length - 1; i >= 0; i--) {
+                const sub = game.submarines[i];
+                sub.update();
+
+                if (!sub.alive) {
+                    game.submarines.splice(i, 1);
+                    continue;
+                }
+
+                if (sub.collidesWith(game.player)) {
+                    game.health = 0;
+                    game.submarines.splice(i, 1);
+                    endGame();
+                    return;
+                }
+            }
+
+            // Update soccer balls
+            for (let i = game.soccerBalls.length - 1; i >= 0; i--) {
+                const ball = game.soccerBalls[i];
+                ball.update();
+
+                if (ball.active && ball.collidesWith(game.player)) {
+                    game.health = 0;
+                    game.soccerBalls.splice(i, 1);
+                    endGame();
+                    return;
+                }
+
+                if (!ball.active) {
+                    game.soccerBalls.splice(i, 1);
+                }
+            }
+
+            // Spawn passing boat hulls occasionally (upper area)
+            if (now >= game.nextBoatSpawnAt) {
+                const side = Math.random() < 0.5 ? 'left' : 'right';
+                if (game.boats.length < 2) {
+                    game.boats.push(new Boat(side));
+                }
+                game.nextBoatSpawnAt = now + 7000 + Math.random() * 8000;
+            }
+
+            // Update boats
+            for (let i = game.boats.length - 1; i >= 0; i--) {
+                const boat = game.boats[i];
+                boat.update();
+
+                if (!boat.alive) {
+                    game.boats.splice(i, 1);
+                    continue;
+                }
+
+                if (boat.collidesWith(game.player)) {
+                    game.health = 0;
+                    game.boats.splice(i, 1);
+                    endGame();
+                    return;
+                }
+            }
+
             // Update pulses
             for (let i = game.pulses.length - 1; i >= 0; i--) {
                 const pulse = game.pulses[i];
@@ -1396,6 +1794,15 @@
 
             // Draw enemies
             game.enemies.forEach(enemy => enemy.draw());
+
+            // Draw submarines
+            game.submarines.forEach(sub => sub.draw());
+
+            // Draw boats (upper hazards)
+            game.boats.forEach(boat => boat.draw());
+
+            // Draw soccer balls
+            game.soccerBalls.forEach(ball => ball.draw());
 
             // Draw projectiles
             game.projectiles.forEach(proj => proj.draw());
@@ -1599,6 +2006,11 @@
             game.collectibles = [];
             game.enemies = [];
             game.projectiles = [];
+            game.submarines = [];
+            game.soccerBalls = [];
+            game.nextSubmarineSpawnAt = Date.now() + 1500;
+            game.boats = [];
+            game.nextBoatSpawnAt = Date.now() + 5000;
             game.score = 0;
             game.pulsesJumped = 0;
             game.combo = 0;
