@@ -111,6 +111,22 @@
             transform: scale(1.05);
         }
 
+        .game-over .button-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .game-over .test-button {
+            background: #ffaa00;
+            color: #1a1a2e;
+        }
+
+        .game-over .test-button:hover {
+            background: #ff8800;
+        }
+
         .connection-status {
             position: absolute;
             top: 20px;
@@ -241,6 +257,35 @@
             text-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
             letter-spacing: 2px;
         }
+
+        /* Test Mode Button on Main Screen */
+        .test-mode-button {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffaa00;
+            color: #1a1a2e;
+            border: 3px solid #ff8800;
+            padding: 15px 40px;
+            font-size: 1.5em;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .test-mode-button:hover {
+            background: #ff8800;
+            transform: translateX(-50%) scale(1.1);
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.8);
+        }
+
+        .test-mode-button.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -269,13 +314,19 @@
     <!-- Proximity invite text - shown when user is within 50cm -->
     <div class="invite-text" id="inviteText">🎮 ¡Ven a Jugar! 🎮</div>
 
+    <!-- Test Mode Button - shown before game starts -->
+    <button class="test-mode-button" id="testModeButton" onclick="startTestMode()">🧪 Test Mode</button>
+
 
     <div class="game-over" id="gameOver">
         <h2>💀 GAME OVER</h2>
         <p style="font-size: 1.5em; margin: 20px 0;">Final Score: <span id="finalScore">0</span></p>
         <p style="font-size: 1.2em; margin: 10px 0;">Pulses Jumped: <span id="finalPulses">0</span></p>
         <p style="font-size: 1em; color: #ff4444; margin: 10px 0;">💀 Killed by enemy!</p>
-        <button onclick="restartGame()">🔄 Play Again</button>
+        <div class="button-container">
+            <button onclick="restartGame()">🔄 Play Again</button>
+            <button class="test-button" onclick="startTestMode()">🧪 Test</button>
+        </div>
     </div>
 
     <div class="game-over" id="gameWon" style="border-color: #00ff88;">
@@ -285,7 +336,10 @@
         <p style="font-size: 1.2em; margin: 10px 0;">Final Score: <span id="winScore">0</span></p>
         <p style="font-size: 1em; margin: 10px 0;">Pulses Jumped: <span id="winPulses">0</span></p>
         <p style="font-size: 1em; margin: 10px 0;">Items Collected: <span id="winItems">0</span></p>
-        <button onclick="restartGame()" style="background: #00ff88;">🎉 Play Again</button>
+        <div class="button-container">
+            <button onclick="restartGame()" style="background: #00ff88;">🎉 Play Again</button>
+            <button class="test-button" onclick="startTestMode()">🧪 Test</button>
+        </div>
     </div>
 
     <div class="game-container">
@@ -429,9 +483,10 @@
             gameOver: false,
             gameWon: false,
             gameStarted: false,  // NEW: Game only starts when Arduino button is pressed
+            testMode: false,  // Test mode - no Arduino, no win/lose sequences
             survivalTime: 0,
             survivalTarget: 60,  // 60 seconds to win
-            scoreTarget: 10,
+            scoreTarget: 300,
             startTime: Date.now(),
             projectiles: [],  // Poop and pee projectiles
             gravity: 0.8,
@@ -1531,8 +1586,8 @@
             // Update survival timer
             game.survivalTime = (Date.now() - game.startTime) / 1000;  // seconds
             
-            // Win if player survived target time OR reached target score
-            if (game.survivalTime >= game.survivalTarget || game.score >= game.scoreTarget) {
+            // Win ONLY if reached 300 points (unless in test mode)
+            if (!game.testMode && game.score >= game.scoreTarget) {
                 winGame();
                 return;
             }
@@ -1887,6 +1942,12 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 24px Arial';
                 ctx.fillText('🎮 Physical button on COM7', canvas.width / 2, canvas.height / 2 + 50);
+                
+                // Show test mode button
+                document.getElementById('testModeButton').classList.remove('hidden');
+            } else {
+                // Hide test mode button when game starts
+                document.getElementById('testModeButton').classList.add('hidden');
             }
         }
 
@@ -1911,14 +1972,18 @@
             document.getElementById('finalPulses').textContent = game.pulsesJumped;
             document.getElementById('gameOver').style.display = 'block';
             
-            // Emit game over event to server with score
-            socket.emit('game_over', {
-                score: game.score,
-                pulses: game.pulsesJumped,
-                items: game.itemsCollected,
-                reason: 'death'
-            });
-            console.log('🏁 Game over event sent - Score:', game.score);
+            // Emit game over event to server with score (unless in test mode)
+            if (!game.testMode) {
+                socket.emit('game_over', {
+                    score: game.score,
+                    pulses: game.pulsesJumped,
+                    items: game.itemsCollected,
+                    reason: 'death'
+                });
+                console.log('🏁 Game over event sent - Score:', game.score);
+            } else {
+                console.log('🧪 Test mode - Game over event not sent');
+            }
         }
 
         // Win game (survived 60 seconds)
@@ -1935,14 +2000,18 @@
             // Confetti animation
             startConfetti();
             
-            // Emit game over event to server with score
-            socket.emit('game_over', {
-                score: game.score,
-                pulses: game.pulsesJumped,
-                items: game.itemsCollected,
-                reason: 'victory'
-            });
-            console.log('🏆 VICTORY! Player survived 60 seconds! Score:', game.score);
+            // Emit game over event to server with score (unless in test mode)
+            if (!game.testMode) {
+                socket.emit('game_over', {
+                    score: game.score,
+                    pulses: game.pulsesJumped,
+                    items: game.itemsCollected,
+                    reason: 'victory'
+                });
+                console.log('🏆 VICTORY! Player survived 60 seconds! Score:', game.score);
+            } else {
+                console.log('🧪 Test mode - Victory event not sent');
+            }
         }
 
         // Play celebration sound
@@ -2057,6 +2126,7 @@
             game.gameOver = false;
             game.gameWon = false;
             game.gameStarted = true;  // Ensure game is started after restart
+            game.testMode = false;  // Exit test mode
             game.survivalTime = 0;
             game.startTime = Date.now();
             game.flyMode = true;  // Always start in fly mode
@@ -2068,6 +2138,22 @@
             document.getElementById('gameOver').style.display = 'none';
             document.getElementById('gameWon').style.display = 'none';
             updateScore();
+        }
+
+        // Start test mode - play without Arduino or win/lose sequences
+        function startTestMode() {
+            restartGame();
+            game.testMode = true;
+            console.log('🧪 Test mode activated - No Arduino triggers, no win/lose sequences');
+            
+            // Hide test mode button
+            document.getElementById('testModeButton').classList.add('hidden');
+            
+            // Visual indicator
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.textContent = '🧪 TEST MODE';
+            statusDiv.style.background = 'rgba(255, 170, 0, 0.3)';
+            statusDiv.style.borderColor = '#ffaa00';
         }
 
         // Webcam functions

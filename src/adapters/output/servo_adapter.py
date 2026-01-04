@@ -401,54 +401,44 @@ class ServoAdapter:
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if score < 10:
-            print(f"😢 Score {score} < 10: USER LOST")
+        if score < 300:
+            print(f"😢 Score {score} < 300: USER LOST")
             print(f"🕐 Timestamp: {timestamp}")
-            print("\n" + "="*60)
-            print("📜 POEMA DE LA RESILIENCIA")
-            print("="*60)
-            print()
-            print("  Caer no es el final, es solo un paso,")
-            print("  cada intento te acerca al éxito acaso.")
-            print("  La derrota es maestra, no enemiga,")
-            print("  y el fracaso, semilla que se abriga.")
-            print()
-            print("  Levántate de nuevo, con más fuerza,")
-            print("  cada caída te hace más experto en la destreza.")
-            print("  El campeón no es quien nunca cae,")
-            print("  sino quien siempre se levanta, sin que nada lo desmaye.")
-            print()
-            print(f"  Tu puntaje: {score} puntos")
-            print("  ¡Inténtalo de nuevo! 💪")
-            print()
-            print("="*60 + "\n")
             
-            # Imprimir poema en la impresora térmica
-            if self.printer_adapter:
-                poem_text = (
-                    f"Timestamp: {timestamp}\n\n"
-                    "POEMA DE LA RESILIENCIA\n"
-                    "========================\n\n"
-                    "Caer no es el final,\n"
-                    "es solo un paso,\n"
-                    "cada intento te acerca\n"
-                    "al exito acaso.\n\n"
-                    "La derrota es maestra,\n"
-                    "no enemiga,\n"
-                    "y el fracaso, semilla\n"
-                    "que se abriga.\n\n"
-                    "Levantate de nuevo,\n"
-                    "con mas fuerza,\n"
-                    "cada caida te hace\n"
-                    "mas experto en la destreza.\n\n"
-                    "El campeon no es quien\n"
-                    "nunca cae,\n"
-                    "sino quien siempre\n"
-                    "se levanta,\n"
-                    "sin que nada lo desmaye.\n\n"
-                    f"Tu puntaje: {score} puntos\n"
-                    "Intentalo de nuevo!"
-                )
+            # Get GPT-generated poem from last game receipt
+            gpt_poem = ""
+            if self._last_game_receipt and 'poem' in self._last_game_receipt:
+                gpt_poem = self._last_game_receipt['poem']
+            
+            # Display poem (GPT-generated or fallback)
+            if gpt_poem:
+                print("\n" + "="*60)
+                print("📜 POEMA DE LA RESILIENCIA")
+                print("="*60)
+                print()
+                print(gpt_poem)
+                print()
+                print(f"  Tu puntaje: {score} puntos")
+                print("  ¡Inténtalo de nuevo! 💪")
+                print()
+                print("="*60 + "\n")
+            else:
+                # Fallback if GPT poem not available
+                print("\n" + "="*60)
+                print("📜 POEMA DE LA RESILIENCIA")
+                print("="*60)
+                print()
+                print("  Caer no es el final, es solo un paso,")
+                print("  cada intento te acerca al éxito acaso.")
+                print()
+                print(f"  Tu puntaje: {score} puntos")
+                print("  ¡Inténtalo de nuevo! 💪")
+                print()
+                print("="*60 + "\n")
+            
+            # Print poem on thermal printer
+            if self.printer_adapter and gpt_poem:
+                poem_text = f"Timestamp: {timestamp}\n\n{gpt_poem}\n\nTu puntaje: {score} puntos\nIntentalo de nuevo!"
                 print("🖨️  Imprimiendo poema de resiliencia...")
                 result = self.printer_adapter.print_thank_you(score=score, poem=poem_text)
                 if result:
@@ -456,9 +446,9 @@ class ServoAdapter:
                 else:
                     print("❌ Error al imprimir poema")
             else:
-                print("⚠️  No hay impresora térmica conectada")
+                print("⚠️  No hay impresora térmica conectada o poema no disponible")
             
-            logger.info(f"Score {score} < 100: Sending LOSE command at {timestamp}")
+            logger.info(f"Score {score} < 300: Sending LOSE command at {timestamp}")
             try:
                 self.serial_connection.write(b"LOSE\n")
                 self.serial_connection.flush()
@@ -469,7 +459,7 @@ class ServoAdapter:
                 print(f"❌ Error sending LOSE: {e}")
                 return False
         else:
-            print(f"🏆 Score {score} >= 100: USER WON!")
+            print(f"🏆 Score {score} >= 300: USER WON!")
             print(f"🕐 Timestamp: {timestamp}")
             print(f"🎯 Puntaje obtenido: {score} puntos")
             print("   Triggering full win sequence:")
@@ -478,7 +468,7 @@ class ServoAdapter:
             print("   → Suction pump activation")
             print("   → Arm lift with object")
             print("   → Release")
-            logger.info(f"Score {score} >= 100: Sending WIN command to Stage 1 at {timestamp}")
+            logger.info(f"Score {score} >= 300: Sending WIN command to Stage 1 at {timestamp}")
             try:
                 self.serial_connection.write(b"WIN\n")
                 self.serial_connection.flush()
