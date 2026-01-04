@@ -3,6 +3,7 @@
  * 
  * Receives pump activation/deactivation signals via serial from Python
  * Controls suction pump and solenoid valve
+ * Supports configurable suction strength
  */
 
 #include <Servo.h>
@@ -15,6 +16,7 @@ String inputBuffer = "";
 
 // State
 bool pumpActive = false;
+int suctionLevel = 60;  // Default: medium suction (0=max, 90=off)
 
 void setup() {
   Serial.begin(9600);
@@ -36,12 +38,14 @@ void activatePump() {
   valvula.write(180);
   delay(200);
   
-  // Turn pump ON (suction) - 0 = full speed
-  bomba.write(0);
+  // Turn pump ON with configured suction level
+  bomba.write(suctionLevel);
   delay(100);  // Let it start
   
   pumpActive = true;
-  Serial.println("{\"status\":\"pump_active\"}");
+  Serial.print("{\"status\":\"pump_active\",\"suction_level\":");
+  Serial.print(suctionLevel);
+  Serial.println("}");
 }
 
 void deactivatePump() {
@@ -71,21 +75,54 @@ void loop() {
         Serial.print(inputBuffer);
         Serial.println("\"}");
         
-        if (inputBuffer == "ACTIVATE_PUMP") {
+        if (inputBuffer.startsWith("ACTIVATE_PUMP")) {
+          // Check if suction level is specified: ACTIVATE_PUMP:45
+          int colonPos = inputBuffer.indexOf(':');
+          if (colonPos > 0) {
+            String levelStr = inputBuffer.substring(colonPos + 1);
+            int level = levelStr.toInt();
+            if (level >= 0 && level <= 90) {
+              suctionLevel = level;
+              Serial.print("{\"status\":\"suction_level_set\",\"level\":");
+              Serial.print(suctionLevel);
+              Serial.println("}");
+            }
+          }
           activatePump();
         }
         else if (inputBuffer == "DEACTIVATE_PUMP") {
           deactivatePump();
         }
+        else if (inputBuffer.startsWith("SET_SUCTION")) {
+          // SET_SUCTION:45
+          int colonPos = inputBuffer.indexOf(':');
+          if (colonPos > 0) {
+            String levelStr = inputBuffer.substring(colonPos + 1);
+            int level = levelStr.toInt();
+            if (level >= 0 && level <= 90) {
+              suctionLevel = level;
+              Serial.print("{\"status\":\"suction_level_set\",\"level\":");
+              Serial.print(suctionLevel);
+              Serial.println("}");
+            } else {
+              Serial.println("{\"error\":\"invalid_suction_level\"}");
+            }
+          }
+        }
         else if (inputBuffer == "STATUS") {
           if (pumpActive) {
-            Serial.println("{\"status\":\"pump_active\"}");
+            Serial.print("{\"status\":\"pump_active\",\"suction_level\":");
+            Serial.print(suctionLevel);
+            Serial.println("}");
           } else {
-            Serial.println("{\"status\":\"pump_inactive\"}");
+            Serial.print("{\"status\":\"pump_inactive\",\"suction_level\":");
+            Serial.print(suctionLevel);
+            Serial.println("}");
           }
         }
         else if (inputBuffer == "RESET") {
           deactivatePump();
+          suctionLevel = 60;  // Reset to default
           Serial.println("{\"status\":\"pump_reset\"}");
         }
         else if (inputBuffer == "TEST") {

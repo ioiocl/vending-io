@@ -1,335 +1,700 @@
-# Music-IO
+# Music-IO 🎮
 
-**Hexagonal Architecture Music Machine** - An extensible system that converts sensor input into sound using clean architecture principles.
+**Interactive Gaming Machine with Robotic Prize Delivery** - Una máquina de juegos interactiva que combina un juego web con un brazo robótico real que entrega premios físicos.
 
-## 🎵 Overview
+## 🎯 ¿Qué es Music-IO?
 
-Music-IO is a music generation system built with **hexagonal architecture** (ports and adapters pattern). It uses a **state machine orchestrator** in the core to process sensor inputs and generate sound outputs.
+Music-IO es una **máquina de juegos arcade moderna** construida con arquitectura hexagonal que:
 
-### Current Features
+1. 👋 **Te detecta** cuando te acercas (sensor de proximidad)
+2. 🎮 **Te invita** a jugar con un mensaje en pantalla
+3. 🔘 **Inicia el juego** cuando presionas el botón físico
+4. 🏃 **Te reta** a sobrevivir 60 segundos esquivando enemigos
+5. 🤖 **Te premia** con un objeto real entregado por un brazo robótico
+6. 🎫 **Te imprime** un recuerdo en papel térmico
 
-- **Input**: Arduino proximity sensor (HC-SR04)
-- **Output**: Local audio playback
-- **Core**: State machine that converts distance to musical frequencies
+### Características Actuales
 
-### Architecture
+- **Sensor de Proximidad**: Detecta jugadores a menos de 50cm e invita a jugar
+- **Botón Físico**: Inicia el juego con efectos de luz y danza de servos
+- **Juego Web**: Navegador con controles de teclado, joystick USB o gestos con cámara
+- **Brazo Robótico**: Sistema multi-servo (SG90, DS04-NFC 360°, KS3518) con secuencias coreografiadas
+- **Sistema de Succión**: Bomba de vacío para agarrar y entregar objetos
+- **Impresora Térmica**: Imprime recuerdos personalizados con ASCII art y poemas generados por IA
+- **Visualizador Web**: Dashboard en tiempo real con WebSocket
+- **Arquitectura Modular**: Sistema de 2 etapas (COM7 y COM4) con comunicación serial
+
+### Arquitectura del Sistema
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    HEXAGONAL ARCHITECTURE                │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐         ┌──────────────┐             │
-│  │   Arduino    │────────▶│  Input Port  │             │
-│  │   Adapter    │         │  (Interface) │             │
-│  └──────────────┘         └──────┬───────┘             │
-│                                   │                      │
-│                                   ▼                      │
-│                          ┌─────────────────┐            │
-│                          │   CORE DOMAIN   │            │
-│                          │                 │            │
-│                          │  State Machine  │            │
-│                          │   Orchestrator  │            │
-│                          │                 │            │
-│                          │  Business Logic │            │
-│                          └─────────┬───────┘            │
-│                                    │                     │
-│                                    ▼                     │
-│  ┌──────────────┐         ┌──────────────┐             │
-│  │ Local Audio  │◀────────│ Output Port  │             │
-│  │   Adapter    │         │  (Interface) │             │
-│  └──────────────┘         └──────────────┘             │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    MUSIC-IO ARCHITECTURE                     │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  👁️  STAGE 1 (COM7)  →  Sensor + Botón + Servos + Brazo    │
+│      - HC-SR04 Proximity Sensor (invitación)                │
+│      - Botón físico (inicio de juego)                       │
+│      - 2x SG90 servos (danza de inicio)                     │
+│      - 1x DS04-NFC 360° servo (rotación)                    │
+│      - 4x KS3518 servos (brazo robótico)                    │
+│      - Relé (luces/efectos)                                 │
+│                           ↓                                  │
+│  🧠  ORCHESTRATOR     →  Coordinador Central (Python)       │
+│      - Procesa eventos de sensores                          │
+│      - Coordina secuencias robóticas                        │
+│      - Gestiona flujo del juego                             │
+│                           ↓                                  │
+│  💨  STAGE 2 (COM4)   →  Sistema de Succión                 │
+│      - Bomba de vacío                                       │
+│      - Válvula solenoide                                    │
+│                           ↓                                  │
+│  🌐  WEB VISUALIZER   →  Interfaz de Juego                  │
+│      - Juego en navegador (60 segundos)                     │
+│      - WebSocket para tiempo real                           │
+│      - Controles: Teclado/Joystick/Gestos                   │
+│                           ↓                                  │
+│  🖨️  THERMAL PRINTER  →  Recuerdo Impreso                   │
+│      - ASCII art aleatorio                                  │
+│      - Poema generado por IA (OpenAI)                       │
+│      - Mensaje de agradecimiento                            │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### Future Extensibility
+### Flujo del Juego
 
-The architecture is designed to easily add:
+```
+1. IDLE → Usuario se acerca (< 50cm)
+   ↓
+2. Muestra "🎮 ¡Ven a Jugar! 🎮" en pantalla
+   ↓
+3. Usuario presiona botón físico
+   ↓
+4. Relé se activa (luces/sonidos)
+   ↓
+5. SG90 servos bailan por 5 segundos
+   ↓
+6. Juego inicia en navegador (60 segundos)
+   ↓
+7. Usuario juega esquivando enemigos y recolectando sushi
+   ↓
+8. GAME OVER:
+   
+   SI PUNTAJE >= 10 (VICTORIA):
+   ├─→ Servo 360° baila (6 seg derecha, 3 seg izquierda)
+   ├─→ Brazo robótico se extiende
+   ├─→ Bomba de succión se activa (5 segundos)
+   ├─→ Brazo levanta objeto
+   ├─→ Brazo gira hacia jugador (75°)
+   ├─→ Bomba se desactiva (suelta objeto)
+   ├─→ Impresora imprime recuerdo
+   └─→ Reset a IDLE
+   
+   SI PUNTAJE < 10 (DERROTA):
+   ├─→ Relé se desactiva
+   └─→ Reset a IDLE
+```
 
-**Input Adapters:**
-- More sensors (temperature, light, motion)
-- Human interaction (MIDI controllers, keyboards)
-- Blockchain events (on-chain data)
-- Web APIs
-- OSC (Open Sound Control)
+## 🚀 Inicio Rápido
 
-**Output Adapters:**
-- Ableton Live integration
-- SuperCollider
-- Visual servers (Processing, TouchDesigner)
-- MIDI output
-- Network streaming
+### Hardware Necesario
 
-## 🚀 Quick Start
+**Arduino y Sensores:**
+- 2x Arduino Uno/Mega (uno para cada etapa)
+- 1x HC-SR04 Sensor de Proximidad Ultrasónico
+- 1x Botón físico grande
+- 1x Relé (para luces/efectos)
+- 1x LED (indicador)
 
-### Prerequisites
+**Servomotores:**
+- 2x SG90 Servos (danza de inicio)
+- 1x DS04-NFC Servo 360° (rotación continua)
+- 4x KS3518 Servos (brazo robótico)
+- 1x PCA9685 Controlador PWM (16 canales)
 
-- Python 3.8+
-- Arduino board (Uno, Nano, Mega)
-- HC-SR04 Ultrasonic Proximity Sensor
-- USB cable
+**Sistema de Succión:**
+- 1x Bomba de vacío
+- 1x Válvula solenoide
 
-### Installation
+**Impresora:**
+- 1x Impresora térmica USB (compatible con Windows)
 
-1. **Clone or download this repository**
+**Otros:**
+- Cables USB
+- Fuente de alimentación para servos (5V, 10A recomendado)
+- Webcam (opcional, para control por gestos)
 
-2. **Install Python dependencies:**
+### Software Necesario
+
+- Python 3.11+
+- Arduino IDE
+- Navegador web moderno (Chrome/Firefox/Edge)
+
+### Instalación
+
+**1. Clonar el repositorio:**
+```bash
+git clone https://github.com/tu-usuario/Music-IO.git
+cd Music-IO
+```
+
+**2. Instalar dependencias de Python:**
 ```bash
 pip install -r requirements.txt
 ```
 
-3. **Set up Arduino:**
-   - Follow instructions in `arduino/README.md`
-   - Upload `arduino/proximity_sensor/proximity_sensor.ino` to your Arduino
-   - Connect HC-SR04 sensor (see wiring diagram in arduino/README.md)
+**3. Configurar Arduino Stage 1 (COM7):**
+- Abrir `arduino/servo_controller/stage_1.ino` en Arduino IDE
+- Conectar Arduino a COM7
+- Subir el código
+- **Conexiones:**
+  - HC-SR04: TRIG→Pin7, ECHO→Pin6
+  - Botón: Pin9 (con pull-up interno)
+  - Relé: Pin8
+  - LED: Pin10
+  - PCA9685: SDA→A4, SCL→A5
 
-4. **Run the application:**
-```bash
-cd src
-python -m app.main
+**4. Configurar Arduino Stage 2 (COM4):**
+- Abrir `arduino/servo_controller/stage_2.ino` en Arduino IDE
+- Conectar Arduino a COM4
+- Subir el código
+- **Conexiones:**
+  - Bomba de vacío: Pin controlado por relé
+  - Válvula solenoide: Pin controlado por relé
+
+**5. Configurar Impresora Térmica:**
+- Conectar impresora USB
+- Instalar drivers si es necesario
+- El sistema auto-detectará la impresora
+
+**6. (Opcional) Configurar OpenAI para poemas:**
+- Crear archivo `config.properties` en la raíz:
+```properties
+OPENAI_API_KEY=tu_api_key_aqui
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-### Usage
+**7. Ejecutar el sistema completo:**
+```bash
+python run_with_visualizer.py
+```
 
-1. Start the application
-2. Move your hand near the proximity sensor
-3. Hear the sound change based on distance:
-   - **Close (0-10cm)**: High frequency (800-1200 Hz)
-   - **Medium (10-30cm)**: Mid frequency (400-800 Hz)
-   - **Far (30-50cm)**: Low frequency (200-400 Hz)
+**8. Abrir el juego en el navegador:**
+```
+http://127.0.0.1:5000/game
+```
 
-## 📁 Project Structure
+### Uso
+
+**Modo Jugador:**
+1. Acércate a la máquina (< 50cm)
+2. Verás "🎮 ¡Ven a Jugar! 🎮" en pantalla
+3. Presiona el botón físico grande
+4. Disfruta la danza de los servos (5 segundos)
+5. Juega en el navegador:
+   - **Teclado**: Flechas para moverte, Espacio para saltar
+   - **Joystick USB**: Conectar y jugar
+   - **Gestos**: Levanta manos para controlar dificultad
+6. Sobrevive 60 segundos y consigue 10+ puntos
+7. ¡Recibe tu premio del brazo robótico!
+8. Obtén tu recuerdo impreso
+
+**Controles del Juego:**
+- ⬅️➡️ Flechas: Mover personaje
+- ⬆️ Flecha arriba: Saltar
+- 🎮 Joystick: Soporte completo
+- 👋 Mano izquierda arriba: Aparece enemigo
+- 👋 Mano derecha arriba: Aparece sushi (puntos)
+
+## 📁 Estructura del Proyecto
 
 ```
 Music-IO/
 ├── src/
-│   ├── core/                    # Core Domain (Business Logic)
+│   ├── core/                           # Dominio Central (Lógica de Negocio)
 │   │   ├── domain/
-│   │   │   ├── events.py        # Domain events
-│   │   │   └── state_machine.py # State machine orchestrator
-│   │   └── ports/               # Interfaces (contracts)
-│   │       ├── input_port.py
-│   │       └── output_port.py
+│   │   │   ├── events.py               # Eventos del dominio
+│   │   │   ├── state_machine.py        # Máquina de estados
+│   │   │   └── orchestrator.py         # ⭐ Orquestador de sonidos
+│   │   └── ports/                      # Interfaces (contratos)
+│   │       ├── input_port.py           # Puerto de entrada
+│   │       └── output_port.py          # Puerto de salida
 │   │
-│   ├── adapters/                # Implementations
+│   ├── adapters/                       # Implementaciones
 │   │   ├── input/
-│   │   │   └── arduino_adapter.py
+│   │   │   ├── arduino_adapter.py      # Sensor de proximidad (opcional)
+│   │   │   └── button_adapter.py       # Botón físico
 │   │   └── output/
-│   │       └── local_audio_adapter.py
+│   │       ├── local_audio_adapter.py  # Audio local
+│   │       ├── servo_adapter.py        # ⭐ Stage 1 (COM7)
+│   │       ├── pump_adapter.py         # ⭐ Stage 2 (COM4)
+│   │       ├── thermal_printer_adapter_win.py  # ⭐ Impresora
+│   │       └── web_visualizer_adapter.py       # ⭐ Visualizador web
 │   │
-│   └── app/                     # Application Layer
-│       ├── application.py       # Wires everything together
-│       └── main.py             # Entry point
+│   └── app/                            # Capa de Aplicación
+│       ├── application.py              # ⭐ Conecta todo el sistema
+│       └── main.py                     # Punto de entrada
 │
-├── arduino/                     # Arduino code
-│   ├── proximity_sensor/
-│   │   └── proximity_sensor.ino
+├── arduino/                            # Código Arduino
+│   ├── servo_controller/
+│   │   ├── stage_1.ino                 # ⭐ Stage 1 (COM7) - Principal
+│   │   └── stage_2.ino                 # ⭐ Stage 2 (COM4) - Bomba
+│   ├── proximity_sensor/               # Sensor standalone (opcional)
+│   ├── button_controller/              # Botón standalone (opcional)
 │   └── README.md
 │
-├── requirements.txt
-└── README.md
+├── web/
+│   └── templates/
+│       └── game_visualizer.html        # ⭐ Juego web completo
+│
+├── docs/                               # Documentación
+│   ├── ORCHESTRATOR.md                 # Arquitectura del orquestador
+│   ├── PULSE_JUMP_GAME.md             # Documentación del juego
+│   └── WEB_VISUALIZER.md              # Visualizador web
+│
+├── payment/                            # Sistema de pagos (Solana)
+│   └── smart_contract/                 # Contrato inteligente
+│
+├── run_with_visualizer.py              # ⭐ Script principal de ejecución
+├── requirements.txt                    # Dependencias Python
+├── config.properties                   # Configuración (API keys)
+├── COMO_FUNCIONA.md                    # ⭐ Guía completa en español
+└── README.md                           # Este archivo
 ```
 
-## 🏗️ Architecture Principles
+## 🏗️ Arquitectura Hexagonal
 
-### Hexagonal Architecture (Ports & Adapters)
+### Principios de Diseño
 
-1. **Core Domain** (Center)
-   - Contains business logic
-   - State machine orchestrator
-   - Domain events
-   - No dependencies on external frameworks
+**1. Núcleo del Dominio (Centro)**
+   - `SoundOrchestrator`: Coordina múltiples sonidos simultáneos
+   - `MusicStateMachine`: Máquina de estados para lógica del juego
+   - Eventos del dominio: `ProximityEvent`, `SoundEvent`, `ButtonEvent`
+   - Sin dependencias externas
 
-2. **Ports** (Interfaces)
-   - Define contracts
-   - `InputPort`: Interface for all input sources
-   - `OutputPort`: Interface for all output destinations
+**2. Puertos (Interfaces)**
+   - `InputPort`: Contrato para todas las fuentes de entrada
+   - `OutputPort`: Contrato para todos los destinos de salida
+   - Permite intercambiar implementaciones sin cambiar el núcleo
 
-3. **Adapters** (Implementations)
-   - Implement port interfaces
-   - Connect to external systems
-   - Can be swapped without changing core logic
+**3. Adaptadores (Implementaciones)**
+   - **Entrada**: `ButtonAdapter`, `ArduinoAdapter` (proximidad)
+   - **Salida**: `ServoAdapter` (Stage 1), `PumpAdapter` (Stage 2), `ThermalPrinterAdapter`, `WebVisualizerAdapter`, `LocalAudioAdapter`
+   - Cada adaptador es independiente y reemplazable
 
-### Benefits
+### Sistema de 2 Etapas
 
-- **Testability**: Core logic can be tested independently
-- **Flexibility**: Easy to swap adapters (e.g., replace Arduino with web API)
-- **Maintainability**: Clear separation of concerns
-- **Extensibility**: Add new inputs/outputs without modifying core
+**Stage 1 (COM7) - Controlador Principal:**
+- Sensor de proximidad HC-SR04
+- Botón físico de inicio
+- 2x SG90 servos (danza)
+- 1x DS04-NFC servo 360° (rotación)
+- 4x KS3518 servos (brazo robótico)
+- Relé para efectos
+- Coordina con Python para control de bomba
 
-## 🎼 How It Works
+**Stage 2 (COM4) - Controlador de Bomba:**
+- Bomba de succión
+- Válvula solenoide
+- Recibe comandos de Python vía serial
+- Activación/desactivación sincronizada con brazo
 
-### State Machine Flow
+### Beneficios
+
+- ✅ **Modularidad**: Cada componente es independiente
+- ✅ **Testabilidad**: Probar cada parte por separado
+- ✅ **Escalabilidad**: Agregar nuevos juegos o hardware fácilmente
+- ✅ **Mantenibilidad**: Código organizado y documentado
+- ✅ **Extensibilidad**: Arquitectura preparada para crecer
+
+## 🎮 Cómo Funciona
+
+### Máquina de Estados
 
 ```
-IDLE → LISTENING → PROCESSING → PLAYING → LISTENING
+IDLE → GAME_STARTED → WAITING_FOR_RESULT → WIN_SEQUENCE → IDLE
 ```
 
-1. **IDLE**: Waiting for input
-2. **LISTENING**: Proximity detected
-3. **PROCESSING**: Converting distance to sound parameters
-4. **PLAYING**: Sound is being generated
-5. Back to **LISTENING** for next input
+**1. IDLE (Esperando)**
+   - Sensor de proximidad activo
+   - Muestra invitación si usuario < 50cm
+   - Espera presión de botón
 
-### Distance to Sound Mapping
+**2. GAME_STARTED (Juego Iniciado)**
+   - Relé se activa (luces/sonidos)
+   - SG90 servos bailan 5 segundos
+   - Juego web se inicia
 
-The core business logic maps proximity to musical parameters:
+**3. WAITING_FOR_RESULT (Esperando Resultado)**
+   - Usuario juega 60 segundos
+   - Sistema espera señal WIN o LOSE
+
+**4. WIN_SEQUENCE (Secuencia de Victoria)** - Solo si puntaje >= 10
+   - Servo 360° baila (6s derecha + 3s izquierda)
+   - Brazo robótico se extiende en 11 pasos:
+     1. Brazos inferiores adelante (90°)
+     2. Brazo superior alineado (90°)
+     3. Brazos a posición de agarre
+     4. Antebrazo adelante 35°
+     5. Antebrazo abajo 20°
+     6. Brazo izquierdo abajo 45°
+     7. Base gira 30° izquierda
+     8. Brazo izquierdo abajo 90° + **BOMBA ON** (5 seg)
+     9. Antebrazo regresa + **BOMBA OFF**
+     10. Base gira 75° izquierda (entrega)
+     11. Colapso a posición inicial
+   - Impresora imprime recuerdo
+   - Reset a IDLE
+
+**5. LOSE (Derrota)** - Si puntaje < 10
+   - Relé se desactiva
+   - Reset directo a IDLE
+
+### Comunicación Serial
+
+**Python → Stage 1 (COM7):**
+- `"WIN"` - Ejecutar secuencia de victoria
+- `"LOSE"` - Resetear a idle
+- `"START_GAME"` - Iniciar desde web
+- `"RESET"` - Resetear sistema
+
+**Stage 1 → Python:**
+- `{"button":"pressed"}` - Botón presionado
+- `{"invite":"Ven a Jugar"}` - Mostrar invitación
+- `{"invite":""}` - Ocultar invitación
+- `{"action":"activate_pump"}` - Activar bomba (Stage 2)
+- `{"action":"deactivate_pump"}` - Desactivar bomba
+- `{"status":"..."}` - Estados de secuencia
+
+**Python → Stage 2 (COM4):**
+- `"PUMP_ON"` - Activar bomba de succión
+- `"PUMP_OFF"` - Desactivar bomba
+
+## 🔧 Configuración
+
+### Puertos COM
+
+Editar `run_with_visualizer.py` si tus Arduinos están en puertos diferentes:
 
 ```python
-Distance (cm)  →  Frequency (Hz)  →  Amplitude
-0-10          →  1200-800        →  0.8 (loud)
-10-30         →  800-400         →  0.6 (medium)
-30-50         →  400-200         →  0.4 (quiet)
->50           →  No sound        →  0.0
-```
-
-## 🔧 Configuration
-
-### Arduino Settings
-
-Edit `src/adapters/input/arduino_adapter.py`:
-```python
-ArduinoAdapter(
-    port="COM3",        # Your serial port
-    baud_rate=9600,     # Must match Arduino
-    auto_detect=True    # Auto-find Arduino
+app = MusicMachineApplication(
+    enable_visualizer=True,
+    enable_button=True,
+    enable_servo=True,    # Stage 1 - Cambiar puerto en servo_adapter.py
+    enable_pump=True,     # Stage 2 - Cambiar puerto en pump_adapter.py
+    enable_printer=True
 )
 ```
 
-### Audio Settings
+**Puertos por defecto:**
+- Stage 1 (Servo): `COM7`
+- Stage 2 (Pump): `COM4`
 
-Edit `src/adapters/output/local_audio_adapter.py`:
+### Impresora Térmica
+
+El sistema auto-detecta impresoras USB. Para especificar manualmente:
+
 ```python
-LocalAudioAdapter(
-    sample_rate=44100,  # Audio quality
-    channels=1          # 1=mono, 2=stereo
+app = MusicMachineApplication(
+    enable_printer=True,
+    printer_port="Generic / Text Only"  # Nombre de impresora Windows
 )
 ```
 
-## 🧪 Testing
+### OpenAI (Poemas)
 
-### Test Audio Output
-```python
-from src.app.application import MusicMachineApplication
+Crear `config.properties` en la raíz:
 
-app = MusicMachineApplication()
-app.output_adapter.initialize()
-app.test_audio()  # Plays 440Hz tone
+```properties
+OPENAI_API_KEY=sk-tu-api-key-aqui
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-### Test Arduino Connection
-1. Open Arduino Serial Monitor
-2. Set baud rate to 9600
-3. Should see: `{"distance": XX.X}`
+Sin API key, el sistema funciona pero no genera poemas.
 
-## 🚧 Adding New Adapters
+### Ajustes del Juego
 
-### Adding a New Input Adapter
+Editar `web/templates/game_visualizer.html`:
 
-1. Create new adapter in `src/adapters/input/`
-2. Implement `InputPort` interface
-3. Register callback for events
-4. Inject into application
-
-Example:
-```python
-class WebAPIAdapter(InputPort):
-    def start(self): ...
-    def stop(self): ...
-    def register_callback(self, callback): ...
+```javascript
+const GAME_DURATION = 60;  // Duración en segundos
+const WIN_THRESHOLD = 10;  // Puntos mínimos para ganar
 ```
 
-### Adding a New Output Adapter
+## 🧪 Testing y Diagnóstico
 
-1. Create new adapter in `src/adapters/output/`
-2. Implement `OutputPort` interface
-3. Handle `SoundEvent` objects
-4. Inject into application
+### Test de Componentes Individuales
 
-Example:
-```python
-class AbletonAdapter(OutputPort):
-    def initialize(self): ...
-    def play_sound(self, sound_event): ...
-    def stop(self): ...
+**Test del Botón:**
+```bash
+python simple_button_test.py
 ```
 
-## 📝 Logging
+**Test del Servo (Stage 1):**
+```bash
+python test_servo.py
+```
 
-Logs are written to:
-- Console (stdout)
-- `music_machine.log` file
+**Test de la Bomba (Stage 2):**
+```bash
+python test_pump.py
+```
 
-Log levels:
-- `INFO`: General operation
-- `DEBUG`: Detailed events
-- `ERROR`: Problems
+**Test de Impresora:**
+```bash
+python test_thermal_printer.py
+```
 
-## 🐛 Troubleshooting
+**Diagnóstico de Puertos:**
+```bash
+python check_ports.py
+```
 
-### Arduino Not Found
-- Check USB connection
-- Install CH340 drivers (for clone boards)
-- Manually specify port: `ArduinoAdapter(port="COM3")`
+### Monitor Serial Arduino
 
-### No Audio Output
-- Check system audio settings
-- Try different sample rate
-- Install PyAudio dependencies (see platform-specific notes)
+**Stage 1 (COM7):**
+1. Abrir Arduino Serial Monitor
+2. Baudrate: 9600
+3. Deberías ver:
+   - `{"status":"ready"}`
+   - `{"invite":"Ven a Jugar"}` (cuando te acercas)
+   - `{"button":"pressed"}` (al presionar)
 
-### PyAudio Installation Issues
+**Stage 2 (COM4):**
+1. Abrir Arduino Serial Monitor
+2. Baudrate: 9600
+3. Enviar comandos:
+   - `PUMP_ON` → Activa bomba
+   - `PUMP_OFF` → Desactiva bomba
+
+## 🔌 Extensibilidad
+
+### Agregar Nuevos Juegos
+
+1. Crear nuevo HTML en `web/templates/`
+2. Implementar lógica del juego en JavaScript
+3. Usar WebSocket para comunicación:
+   ```javascript
+   socket.emit('game_over', {score: finalScore});
+   ```
+4. El sistema manejará automáticamente WIN/LOSE
+
+### Agregar Nuevos Sensores
+
+1. Crear adaptador en `src/adapters/input/`
+2. Implementar interfaz `InputPort`
+3. Registrar en `application.py`:
+   ```python
+   self.new_sensor = NewSensorAdapter()
+   self.new_sensor.register_callback(self._handle_sensor_event)
+   ```
+
+### Agregar Nuevos Actuadores
+
+1. Crear adaptador en `src/adapters/output/`
+2. Implementar interfaz `OutputPort`
+3. Integrar en secuencias del orquestador
+
+### Sistema de Pagos (Blockchain)
+
+El proyecto incluye integración con Solana:
+- Contrato inteligente en `payment/smart_contract/`
+- Generación de QR codes para pagos
+- Ver `payment/README.md` para detalles
+
+## 📝 Logs y Monitoreo
+
+**Logs del Sistema:**
+- Console (stdout) - Eventos en tiempo real
+- Logs de Python en consola
+- Logs de Arduino en Serial Monitor
+
+**Niveles de Log:**
+- `INFO`: Operación general
+- `DEBUG`: Eventos detallados
+- `WARNING`: Advertencias
+- `ERROR`: Errores
+
+**Monitoreo en Tiempo Real:**
+- Dashboard web: `http://127.0.0.1:5000`
+- WebSocket para actualizaciones instantáneas
+- Estado del orquestador visible en consola
+
+## 🐛 Solución de Problemas
+
+### Arduino No Detectado
+
+**Problema:** `Failed to initialize servo controller on COM7`
+
+**Soluciones:**
+1. Verificar conexión USB
+2. Instalar drivers CH340/CH341 (para clones)
+3. Verificar puerto en Administrador de Dispositivos (Windows)
+4. Ejecutar `python check_ports.py` para ver puertos disponibles
+5. Cerrar Arduino IDE (puede bloquear el puerto)
+
+### Bomba No Responde
+
+**Problema:** Bomba no se activa en secuencia de victoria
+
+**Soluciones:**
+1. Verificar que Stage 2 está en COM4
+2. Probar con `python test_pump.py`
+3. Verificar alimentación de la bomba (5V, suficiente amperaje)
+4. Revisar conexiones del relé
+
+### Impresora No Imprime
+
+**Problema:** `Failed to initialize thermal printer`
+
+**Soluciones:**
+1. Verificar que la impresora está conectada por USB
+2. Instalar drivers de la impresora
+3. Verificar en "Dispositivos e impresoras" de Windows
+4. Probar con `python test_thermal_printer.py`
+5. El sistema funciona sin impresora (característica opcional)
+
+### Juego No Inicia en Navegador
+
+**Problema:** Página no carga o no responde
+
+**Soluciones:**
+1. Verificar que `run_with_visualizer.py` está ejecutándose
+2. Abrir `http://127.0.0.1:5000/game` (no localhost)
+3. Verificar firewall de Windows
+4. Revisar consola de Python para errores
+5. Probar en modo incógnito del navegador
+
+### Servos No Se Mueven
+
+**Problema:** Servos no responden o se mueven erráticamente
+
+**Soluciones:**
+1. Verificar alimentación (5V, 10A recomendado para todos los servos)
+2. Verificar conexiones del PCA9685
+3. Probar con `python test_servo.py`
+4. Revisar que I2C está correctamente conectado (SDA→A4, SCL→A5)
+5. Verificar que no hay cortocircuitos
+
+### PyAudio/PyWin32 No Instala
 
 **Windows:**
 ```bash
 pip install pipwin
 pipwin install pyaudio
+pip install pywin32
 ```
 
-**Linux:**
+**Si persiste:**
 ```bash
-sudo apt-get install portaudio19-dev python3-pyaudio
-pip install pyaudio
+pip install --upgrade pip
+pip install pyaudio --user
 ```
 
-**macOS:**
-```bash
-brew install portaudio
-pip install pyaudio
-```
+### Ver Documentación Completa
 
-## 📚 Further Reading
+Para más detalles, consultar:
+- `TROUBLESHOOTING.md` - Guía completa de problemas
+- `COMO_FUNCIONA.md` - Explicación detallada del sistema
+- `ARDUINO_SETUP.md` - Configuración de hardware
 
+## 📚 Documentación Adicional
+
+### Guías Principales
+- **`COMO_FUNCIONA.md`** - Explicación completa para todos los niveles
+- **`QUICKSTART.md`** - Inicio rápido en 5 minutos
+- **`ARCHITECTURE.md`** - Arquitectura técnica detallada
+- **`TROUBLESHOOTING.md`** - Solución de problemas
+
+### Documentación Técnica
+- **`docs/ORCHESTRATOR.md`** - Sistema de orquestación
+- **`docs/PULSE_JUMP_GAME.md`** - Documentación del juego
+- **`docs/WEB_VISUALIZER.md`** - Visualizador web
+- **`ARDUINO_SETUP.md`** - Configuración de hardware
+- **`BUTTON_TEST_GUIDE.md`** - Testing de botón
+- **`BUTTON_SERVO_TEST_GUIDE.md`** - Testing de servos
+
+### Referencias Externas
 - [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
-- [Ports and Adapters Pattern](https://herbertograca.com/2017/09/14/ports-adapters-architecture/)
-- [State Machine Pattern](https://refactoring.guru/design-patterns/state)
+- [Arduino PCA9685 Library](https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library)
+- [Flask-SocketIO](https://flask-socketio.readthedocs.io/)
 
-## 🤝 Contributing
+## 🤝 Contribuir
 
-This is a starting point for an extensible music system. Feel free to:
-- Add new input adapters
-- Add new output adapters
-- Enhance the state machine logic
-- Improve the sound generation algorithms
+Music-IO es **open source** y acepta contribuciones:
 
-## 📄 License
+**Sin programar:**
+- 🎨 Diseño visual y gráficos
+- 🎵 Efectos de sonido y música
+- 📝 Documentación y traducciones
+- 🎮 Diseño de nuevos juegos
+- 🧪 Testing y reporte de bugs
 
-MIT License - Feel free to use and modify
+**Programando:**
+- 🎮 Nuevos juegos web
+- 🤖 Mejoras al brazo robótico
+- 🔌 Nuevos sensores y actuadores
+- 🌐 Funciones web (leaderboards, social)
+- 💰 Sistema de pagos mejorado
+
+**Cómo contribuir:**
+1. Fork del repositorio
+2. Crear branch para tu feature
+3. Hacer tus cambios
+4. Probar que funciona
+5. Crear Pull Request
+
+## 📄 Licencia
+
+MIT License - Libre para usar y modificar
 
 ## 🎯 Roadmap
 
-- [ ] Add MIDI input adapter
-- [ ] Add Ableton Live output adapter
-- [ ] Add SuperCollider output adapter
-- [ ] Add visual output (Processing/TouchDesigner)
-- [ ] Add blockchain event input adapter
-- [ ] Add web API input adapter
-- [ ] Add configuration file support
-- [ ] Add GUI for monitoring
-- [ ] Add recording/playback functionality
-- [ ] Add multiple simultaneous inputs
-- [ ] Add audio effects processing
+### Completado ✅
+- [x] Sistema de 2 etapas (Stage 1 y Stage 2)
+- [x] Brazo robótico con 11 pasos
+- [x] Sistema de succión sincronizado
+- [x] Impresora térmica con ASCII art y poemas IA
+- [x] Juego web con controles múltiples
+- [x] Sensor de proximidad con invitación
+- [x] Arquitectura hexagonal completa
+- [x] WebSocket para tiempo real
+- [x] Integración con Solana blockchain
+
+### En Progreso 🚧
+- [ ] Sistema de leaderboards online
+- [ ] Múltiples juegos seleccionables
+- [ ] App móvil para control remoto
+- [ ] Sistema de logros y trofeos
+
+### Futuro 🔮
+- [ ] Reconocimiento facial para jugadores recurrentes
+- [ ] Integración con redes sociales
+- [ ] Modo multijugador
+- [ ] Versión portátil con batería
+- [ ] Kit comercial para venta
+- [ ] Versión educativa para escuelas
+
+## 🌟 Créditos
+
+**Desarrollado con:**
+- Python + Flask + SocketIO
+- Arduino + PCA9685
+- HTML5 Canvas + JavaScript
+- OpenAI API
+- Solana Blockchain
+
+**Agradecimientos:**
+- Comunidad open source
+- Todos los contribuidores
+- Jugadores y testers
 
 ---
 
-**Built with ❤️ using Hexagonal Architecture**
+**🎮 Construido con ❤️ usando Arquitectura Hexagonal**
+
+**¿Preguntas? ¿Ideas? ¿Quieres construir tu propia Music-IO?**
+
+Abre un Issue en GitHub o consulta `COMO_FUNCIONA.md` para una guía completa.
+
+*Última actualización: Enero 2026*

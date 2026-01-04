@@ -39,5 +39,4 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Project specific
-music_machine.log
+

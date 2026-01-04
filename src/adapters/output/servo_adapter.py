@@ -382,8 +382,8 @@ class ServoAdapter:
         
         Args:
             score: Game score
-                < 100: User lost - send LOSE command
-                >= 100: User won - send WIN command to trigger full sequence
+                < 10: User lost - send LOSE command
+                >= 10: User won - send WIN command to trigger full sequence
         """
         print("\n" + "="*60)
         print(f"🤖 GAME RESULT - SCORE: {score}")
@@ -401,8 +401,8 @@ class ServoAdapter:
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if score < 250:
-            print(f"😢 Score {score} < 100: USER LOST")
+        if score < 10:
+            print(f"😢 Score {score} < 10: USER LOST")
             print(f"🕐 Timestamp: {timestamp}")
             print("\n" + "="*60)
             print("📜 POEMA DE LA RESILIENCIA")

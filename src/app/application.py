@@ -500,6 +500,8 @@ class MusicMachineApplication:
         return props
 
     def _generate_short_poem(self, score: int) -> str:
+        import time
+        
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         config_path = os.path.join(repo_root, 'config.properties')
         props = self._read_properties(config_path)
@@ -509,34 +511,105 @@ class MusicMachineApplication:
             logger.warning(f"OPENAI_API_KEY missing. Looked in: {config_path} (and environment variable OPENAI_API_KEY)")
             return ""
 
-        themes = [
-            "lluvia en la ventana",
-            "un tren nocturno",
-            "mar y sal",
-            "una ciudad vacia",
-            "cafe recien hecho",
-            "un bosque con niebla",
-            "un abrazo que llega tarde",
-            "una estrella fugaz",
-            "papel y tinta",
-            "un perro durmiendo al sol",
-        ]
-        theme = random.choice(themes)
-        prompt = (
-            "Escribe un poema MUY corto en español de máximo 20 palabras. "
-            "Debe ser aleatorio y no debe tener relacion con juegos, puntajes, numeros o competicion. "
-            f"Tema sugerido: {theme}. "
-            "No menciones puntaje, ni numeros, ni niveles, ni victoria/derrota. "
-            "Solo el poema, sin comillas."
-        )
+        # Different themes based on win/lose
+        WIN_THRESHOLD = 10
+        
+        logger.info(f"🎨 Generating poem for score: {score} (threshold: {WIN_THRESHOLD})")
+        print(f"\n🎨 Generating {'RESILIENCE' if score < WIN_THRESHOLD else 'VICTORY'} poem from ChatGPT...")
+        
+        if score < WIN_THRESHOLD:
+            # LOSE: Themes about resilience, perseverance, trying again
+            resilience_themes = [
+                "levantarse después de caer",
+                "un árbol que crece entre piedras",
+                "el amanecer después de la tormenta",
+                "una semilla que rompe el concreto",
+                "el río que encuentra su camino",
+                "volver a empezar con fuerza",
+                "la luz que atraviesa las nubes",
+                "un puente que se reconstruye",
+                "el ave que aprende a volar",
+                "la marea que siempre regresa",
+                "raíces profundas en tierra dura",
+                "el fuego que renace de las cenizas",
+                "pasos firmes en terreno difícil",
+                "la montaña que espera al escalador",
+                "un nuevo intento, una nueva oportunidad",
+                "el bambú que se dobla pero no se rompe",
+                "cicatrices que cuentan historias de victoria",
+                "el camino que se hace al andar",
+                "la fortaleza que nace del dolor",
+                "el guerrero que cae siete veces y se levanta ocho"
+            ]
+            
+            # Add more variety to the prompt itself
+            prompt_variations = [
+                "Escribe un poema breve y motivador en español (máximo 20 palabras) sobre {theme}. Inspira a seguir adelante con fuerza y determinación.",
+                "Crea un verso corto en español (máximo 20 palabras) que hable de {theme}. Debe transmitir esperanza y valentía.",
+                "Compón un poema conciso en español (máximo 20 palabras) acerca de {theme}. Que motive a no rendirse nunca.",
+                "Escribe versos inspiradores en español (máximo 20 palabras) sobre {theme}. Transmite resiliencia y coraje.",
+                "Genera un poema breve en español (máximo 20 palabras) relacionado con {theme}. Debe alentar a intentarlo nuevamente."
+            ]
+            
+            theme = random.choice(resilience_themes)
+            prompt_template = random.choice(prompt_variations)
+            # Use timestamp + random for maximum uniqueness
+            unique_id = int(time.time() * 1000000) % 1000000  # Microseconds for more precision
+            random_seed = random.randint(10000, 99999)
+            
+            prompt = (
+                f"{prompt_template.format(theme=theme)} "
+                "NO menciones 'juego', 'puntaje', 'perder', 'ganar', ni números. "
+                "Solo el poema puro, sin comillas, sin título, sin explicaciones. "
+                f"Variación {random_seed}-{unique_id}"
+            )
+            logger.info(f"📝 Theme: {theme} | Seed: {random_seed} | ID: {unique_id}")
+            print(f"   Theme: {theme} (Seed: {random_seed})")
+        else:
+            # WIN: Varied and joyful themes
+            victory_themes = [
+                "lluvia en la ventana",
+                "un tren nocturno",
+                "mar y sal",
+                "una ciudad vacía",
+                "café recién hecho",
+                "un bosque con niebla",
+                "un abrazo que llega tarde",
+                "una estrella fugaz",
+                "papel y tinta",
+                "un perro durmiendo al sol",
+                "flores en primavera",
+                "viento entre los árboles",
+                "luna llena en el lago",
+                "mariposas en el jardín",
+                "el canto de los pájaros"
+            ]
+            theme = random.choice(victory_themes)
+            # Use current timestamp in milliseconds for maximum uniqueness
+            unique_id = int(time.time() * 1000) % 10000
+            prompt = (
+                "Escribe un poema MUY corto en español de máximo 20 palabras. "
+                "Debe ser alegre, poético y contemplativo. "
+                f"Tema sugerido: {theme}. "
+                "NO menciones juegos, puntajes, números o competición. "
+                "Solo el poema, sin comillas ni título. "
+                "Cada poema debe ser ÚNICO y DIFERENTE. "
+                f"ID único: {unique_id}"  # Use timestamp for uniqueness
+            )
+            logger.info(f"📝 Theme selected: {theme} (ID: {unique_id})")
+            print(f"   Theme: {theme}")
 
         try:
             url = "https://api.openai.com/v1/chat/completions"
+            # Use maximum randomness settings
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 60,
-                "temperature": 1.1
+                "temperature": 1.5,  # Maximum creativity (0-2 range)
+                "top_p": 0.95,  # Nucleus sampling for diversity
+                "frequency_penalty": 1.0,  # Penalize repetition
+                "presence_penalty": 1.0  # Encourage new topics
             }
             req = urllib.request.Request(
                 url,
@@ -551,9 +624,14 @@ class MusicMachineApplication:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 text = (((data.get('choices') or [{}])[0].get('message') or {}).get('content') or "").strip()
+                # Remove quotes if present
+                text = text.strip('"').strip("'")
                 words = text.split()
                 if len(words) > 20:
                     text = " ".join(words[:20]).strip()
+                
+                logger.info(f"✅ Poem generated successfully: {text[:50]}...")
+                print(f"   ✅ Generated: {text}")
                 return text
 
         except urllib.error.HTTPError as e:

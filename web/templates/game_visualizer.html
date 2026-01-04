@@ -18,6 +18,7 @@
             color: white;
             overflow: hidden;
             height: 100vh;
+            padding-top: 60px;
         }
 
         #gameCanvas {
@@ -32,7 +33,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            height: calc(100vh - 60px);
             padding: 20px;
         }
 
@@ -209,9 +210,46 @@
                 box-shadow: 0 0 60px rgba(0, 255, 136, 0.8), 0 15px 40px rgba(0, 0, 0, 0.4);
             }
         }
+
+        /* Company Header */
+        .company-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 1500;
+            border-bottom: 2px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .company-logo {
+            height: 45px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .company-title {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.6);
+            letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
+    <!-- Company Header -->
+    <div class="company-header">
+        <img src="/static/logo/ioio_logo.png" alt="IOIO Logo" class="company-logo">
+        <div class="company-title">IOIO - EL JUEGO DE LA VIDA</div>
+    </div>
+
     <div class="connection-status disconnected" id="connectionStatus">
         ⚫ Disconnected
     </div>
@@ -393,7 +431,7 @@
             gameStarted: false,  // NEW: Game only starts when Arduino button is pressed
             survivalTime: 0,
             survivalTarget: 60,  // 60 seconds to win
-            scoreTarget: 500,
+            scoreTarget: 10,
             startTime: Date.now(),
             projectiles: [],  // Poop and pee projectiles
             gravity: 0.8,
