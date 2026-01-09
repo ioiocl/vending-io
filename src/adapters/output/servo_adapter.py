@@ -401,8 +401,8 @@ class ServoAdapter:
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if score < 300:
-            print(f"😢 Score {score} < 300: USER LOST")
+        if score < 10:
+            print(f"😢 Score {score} < 10: USER LOST")
             print(f"🕐 Timestamp: {timestamp}")
             
             # Get GPT-generated poem from last game receipt
@@ -448,7 +448,7 @@ class ServoAdapter:
             else:
                 print("⚠️  No hay impresora térmica conectada o poema no disponible")
             
-            logger.info(f"Score {score} < 300: Sending LOSE command at {timestamp}")
+            logger.info(f"Score {score} < 10: Sending LOSE command at {timestamp}")
             try:
                 self.serial_connection.write(b"LOSE\n")
                 self.serial_connection.flush()

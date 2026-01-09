@@ -315,7 +315,7 @@ void performWinSequence() {
     pca.setPWM(SERVO360, 0, PWM_STOP);
     delay(10);
   }
-  delay(3000);
+  delay(6000);
 
   // --------------------------------
   // STEP 3 — FAST LEFT ROTATION
@@ -331,7 +331,7 @@ void performWinSequence() {
     pca.setPWM(SERVO360, 0, PWM_STOP);
     delay(10);
   }
-  delay(2000);
+  delay(5500);
 
   // --------------------------------
   // ARM SEQUENCE (after 360 servo)
