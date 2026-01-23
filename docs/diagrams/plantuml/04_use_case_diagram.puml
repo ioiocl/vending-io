@@ -1,0 +1,162 @@
+@startuml Music-IO Use Case Diagram
+!theme plain
+left to right direction
+skinparam actorStyle awesome
+
+title Diagrama de Casos de Uso - Music-IO
+
+' ============================================
+' ACTORS
+' ============================================
+actor "Usuario/Jugador" as User
+actor "Administrador" as Admin
+actor "Sistema" as System <<system>>
+
+' ============================================
+' SYSTEM BOUNDARY
+' ============================================
+rectangle "Sistema Music-IO" {
+    
+    ' Generación de Música
+    package "Generación de Música" {
+        usecase "Generar sonido\npor proximidad" as UC1
+        usecase "Mezclar múltiples\nsonidos" as UC2
+        usecase "Ajustar volumen" as UC3
+        usecase "Probar audio" as UC4
+    }
+    
+    ' Sistema de Juego
+    package "Sistema de Juego" {
+        usecase "Iniciar juego\ncon botón" as UC5
+        usecase "Controlar jugador" as UC6
+        usecase "Recolectar items" as UC7
+        usecase "Evitar enemigos" as UC8
+        usecase "Finalizar juego" as UC9
+    }
+    
+    ' Control de Hardware
+    package "Control de Hardware" {
+        usecase "Activar servos" as UC10
+        usecase "Controlar bomba\nde succión" as UC11
+        usecase "Mover brazo\nrobótico" as UC12
+        usecase "Imprimir recibo" as UC13
+    }
+    
+    ' Visualización
+    package "Visualización" {
+        usecase "Ver pulsos de\nproximidad" as UC14
+        usecase "Ver estadísticas\nde sonido" as UC15
+        usecase "Ver estado de\nconexión" as UC16
+    }
+    
+    ' Detección de Gestos
+    package "Detección de Gestos" {
+        usecase "Detectar mano\nderecha" as UC17
+        usecase "Detectar mano\nizquierda" as UC18
+        usecase "Generar\ncoleccionables" as UC19
+        usecase "Generar enemigos" as UC20
+    }
+}
+
+' ============================================
+' USER RELATIONSHIPS
+' ============================================
+User --> UC1
+User --> UC5
+User --> UC6
+User --> UC7
+User --> UC8
+User --> UC14
+User --> UC17
+User --> UC18
+
+' ============================================
+' ADMIN RELATIONSHIPS
+' ============================================
+Admin --> UC3
+Admin --> UC4
+Admin --> UC10
+Admin --> UC11
+Admin --> UC12
+
+' ============================================
+' SYSTEM RELATIONSHIPS
+' ============================================
+System --> UC2
+System --> UC9
+System --> UC19
+System --> UC20
+
+' ============================================
+' INCLUDE RELATIONSHIPS
+' ============================================
+UC1 ..> UC2 : <<include>>
+UC5 ..> UC6 : <<include>>
+UC9 ..> UC10 : <<include>>
+UC9 ..> UC13 : <<include>>
+UC17 ..> UC19 : <<include>>
+UC18 ..> UC20 : <<include>>
+
+' ============================================
+' EXTEND RELATIONSHIPS
+' ============================================
+UC9 <.. UC11 : <<extend>>
+UC9 <.. UC12 : <<extend>>
+
+@enduml
+
+
+@startuml Music-IO Use Case - UC1 Detail
+!theme plain
+title Caso de Uso UC1: Generar Sonido por Proximidad
+
+|Precondiciones|
+start
+:Sistema iniciado;
+:Sensor conectado;
+
+|Flujo Principal|
+:1. Usuario acerca mano al sensor;
+:2. Sensor detecta distancia;
+:3. Sistema mapea distancia a frecuencia;
+note right
+  0-10cm: 800-1200Hz
+  10-30cm: 400-800Hz
+  30-50cm: 200-400Hz
+end note
+:4. Sistema genera tono;
+:5. Sistema reproduce sonido;
+
+|Postcondiciones|
+:Sonido reproducido;
+:Evento visualizado en web;
+stop
+
+@enduml
+
+
+@startuml Music-IO Use Case - UC9 Detail
+!theme plain
+title Caso de Uso UC9: Finalizar Juego
+
+start
+:Juego Termina;
+
+if (Score >= 300?) then (Sí)
+    :Enviar comando WIN;
+    :Ejecutar danza de servos;
+    :Bajar brazo robótico;
+    :Activar bomba de succión;
+    :Subir brazo con objeto;
+    :Desactivar bomba;
+    :Imprimir recibo de victoria;
+else (No)
+    :Enviar comando LOSE;
+    :Mostrar poema de resiliencia;
+    :Imprimir poema;
+endif
+
+:Volver a estado Idle;
+stop
+
+@enduml

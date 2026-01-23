@@ -1,0 +1,263 @@
+@startuml Music-IO State - MusicStateMachine
+!theme plain
+title 1. Estados de la Máquina de Música (MusicStateMachine)
+
+[*] --> IDLE : Inicialización
+
+state IDLE : Sistema en espera\nSin actividad
+state LISTENING : Esperando input\ndel sensor
+state PROCESSING : Mapeando distancia\na frecuencia
+state PLAYING : Reproduciendo\ntono
+state ERROR : Estado de error\nRequiere intervención
+
+IDLE --> LISTENING : Proximidad detectada
+LISTENING --> PROCESSING : Evento de proximidad recibido
+PROCESSING --> PLAYING : Sonido generado
+PLAYING --> LISTENING : Sonido terminado
+LISTENING --> IDLE : Distancia > 50cm
+
+IDLE --> ERROR : Fallo de hardware
+LISTENING --> ERROR : Error de comunicación
+PROCESSING --> ERROR : Error de procesamiento
+PLAYING --> ERROR : Error de audio
+
+ERROR --> IDLE : Reset manual
+
+@enduml
+
+
+@startuml Music-IO State - Game States
+!theme plain
+title 2. Estados del Juego
+
+[*] --> Idle
+
+state Idle {
+    [*] --> WaitingForPlayer
+    WaitingForPlayer --> ShowingInvite : Usuario < 50cm
+    ShowingInvite --> WaitingForPlayer : Usuario > 50cm
+}
+
+Idle --> Starting : Botón presionado
+
+state Starting {
+    [*] --> SG90Dance
+    SG90Dance --> GameReady : Danza completada
+}
+
+Starting --> Playing : game_start_trigger
+
+state Playing {
+    [*] --> Flying
+    Flying --> Collecting : Colisión con item
+    Collecting --> Flying : +10 puntos
+    Flying --> Damaged : Colisión con enemigo
+    Damaged --> Flying : -5 puntos
+    Flying --> Flying : Movimiento joystick
+}
+
+Playing --> GameOver : Tiempo = 0
+
+state GameOver {
+    [*] --> CalculatingScore
+    CalculatingScore --> Victory : Score >= 300
+    CalculatingScore --> Defeat : Score < 300
+}
+
+state Victory {
+    [*] --> ServoDance
+    ServoDance --> ArmDescending
+    ArmDescending --> PumpActivating
+    PumpActivating --> ArmAscending
+    ArmAscending --> PumpDeactivating
+    PumpDeactivating --> PrintingReceipt
+    PrintingReceipt --> [*]
+}
+
+state Defeat {
+    [*] --> GeneratingPoem
+    GeneratingPoem --> PrintingPoem
+    PrintingPoem --> [*]
+}
+
+Victory --> Idle : Secuencia completa
+Defeat --> Idle : Poema impreso
+
+@enduml
+
+
+@startuml Music-IO State - ServoAdapter
+!theme plain
+title 3. Estados del Servo Adapter (Stage 1)
+
+[*] --> Disconnected
+
+Disconnected --> Connecting : initialize()
+Connecting --> Connected : Serial abierto
+Connecting --> Disconnected : Error de conexión
+
+Connected --> Idle : Arduino listo
+
+state Idle {
+    [*] --> WaitingCommand
+    WaitingCommand --> ProcessingButton : {"button": "pressed"}
+    ProcessingButton --> WaitingCommand : Callback ejecutado
+    WaitingCommand --> ProcessingInvite : {"invite": "..."}
+    ProcessingInvite --> WaitingCommand : Callback ejecutado
+}
+
+Idle --> ExecutingWin : "WIN" enviado
+Idle --> ExecutingLose : "LOSE" enviado
+
+state ExecutingWin {
+    [*] --> Servo360Dance
+    Servo360Dance --> ArmDown
+    ArmDown --> RequestingPump : {"action": "activate_pump"}
+    RequestingPump --> ArmUp
+    ArmUp --> ReleasingPump : {"action": "deactivate_pump"}
+    ReleasingPump --> SequenceComplete
+    SequenceComplete --> [*] : {"status": "sequence_complete"}
+}
+
+state ExecutingLose {
+    [*] --> LoseAnimation
+    LoseAnimation --> [*]
+}
+
+ExecutingWin --> Idle : Secuencia completa
+ExecutingLose --> Idle : Animación completa
+
+Connected --> Disconnected : stop()
+Idle --> Disconnected : Error serial
+
+@enduml
+
+
+@startuml Music-IO State - PumpAdapter
+!theme plain
+title 4. Estados del Pump Adapter (Stage 2)
+
+[*] --> Disconnected
+
+Disconnected --> Connecting : initialize()
+Connecting --> Connected : Serial COM4 abierto
+Connecting --> Disconnected : Error
+
+Connected --> Idle : Arduino listo
+
+state Idle {
+    [*] --> PumpOff
+    note right of PumpOff : Bomba inactiva\nVálvula cerrada
+}
+
+Idle --> Activating : ACTIVATE_PUMP:level
+
+state Activating {
+    [*] --> SettingSuction
+    SettingSuction --> PumpRunning : Nivel configurado
+    note right of PumpRunning : Bomba activa\nSucción: 0-90
+}
+
+Activating --> Active : {"status": "pump_active"}
+
+state Active {
+    [*] --> Sucking
+    Sucking --> Holding : Objeto asegurado
+}
+
+Active --> Deactivating : DEACTIVATE_PUMP
+
+state Deactivating {
+    [*] --> ReleasingValve
+    ReleasingValve --> PumpStopping
+    PumpStopping --> [*] : {"status": "pump_inactive"}
+}
+
+Deactivating --> Idle : Callback ejecutado
+
+Connected --> Disconnected : stop()
+Active --> Disconnected : Error
+
+@enduml
+
+
+@startuml Music-IO State - ThermalPrinter
+!theme plain
+title 5. Estados de la Impresora Térmica
+
+[*] --> NotInitialized
+
+NotInitialized --> Detecting : initialize()
+
+state Detecting {
+    [*] --> SearchingUSB
+    SearchingUSB --> FoundUSB : USB printer detectada
+    SearchingUSB --> UsingDefault : No USB encontrada
+    FoundUSB --> [*]
+    UsingDefault --> [*]
+}
+
+Detecting --> Ready : Printer abierta
+Detecting --> NotInitialized : Error
+
+state Ready {
+    [*] --> Idle
+    note right of Idle : Impresora lista\nEsperando trabajo
+}
+
+Ready --> Printing : print_thank_you()
+
+state Printing {
+    [*] --> OpeningPrinter
+    OpeningPrinter --> StartingDoc
+    StartingDoc --> WritingData
+    WritingData --> EndingDoc
+    EndingDoc --> ClosingPrinter
+    ClosingPrinter --> [*]
+}
+
+Printing --> Ready : Impresión exitosa
+Printing --> Error : Fallo de impresión
+
+Error --> Ready : Retry
+Error --> NotInitialized : stop()
+
+Ready --> NotInitialized : stop()
+
+@enduml
+
+
+@startuml Music-IO State - WebSocket
+!theme plain
+title 6. Estados del WebSocket (Visualizador)
+
+[*] --> ServerStarting
+
+ServerStarting --> ServerRunning : Flask iniciado
+
+state ServerRunning {
+    [*] --> NoClients
+    
+    NoClients --> ClientConnected : connect event
+    
+    state ClientConnected {
+        [*] --> Idle
+        Idle --> SendingProximity : proximity_pulse
+        SendingProximity --> Idle
+        Idle --> SendingSound : sound_event
+        SendingSound --> Idle
+        Idle --> SendingGameStart : game_start_trigger
+        SendingGameStart --> Idle
+        Idle --> ReceivingGameOver : game_over
+        ReceivingGameOver --> Idle
+        Idle --> ReceivingHand : hand_raised
+        ReceivingHand --> SendingSpawn : spawn_collectible
+        SendingSpawn --> Idle
+    }
+    
+    ClientConnected --> NoClients : disconnect event
+}
+
+ServerRunning --> [*] : stop()
+
+@enduml

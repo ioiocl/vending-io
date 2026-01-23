@@ -1,0 +1,236 @@
+@startuml Music-IO Deployment Diagram
+!theme plain
+skinparam linetype ortho
+
+title Diagrama de Despliegue - Music-IO
+
+' ============================================
+' PC WINDOWS
+' ============================================
+node "PC Windows" as PC {
+    
+    node "Python Runtime" as Python {
+        component [MusicMachineApplication] as App
+        component [SoundOrchestrator] as Orchestrator
+        
+        package "Input Adapters" {
+            component [ArduinoAdapter] as ArduinoAdp
+            component [ButtonAdapter] as ButtonAdp
+        }
+        
+        package "Output Adapters" {
+            component [LocalAudioAdapter] as AudioAdp
+            component [ServoAdapter] as ServoAdp
+            component [PumpAdapter] as PumpAdp
+            component [ThermalPrinterAdapter] as PrinterAdp
+            component [WebVisualizerAdapter] as WebVizAdp
+        }
+    }
+    
+    node "Flask Server :5000" as Flask {
+        component [Socket.IO] as SocketIO
+        component [HTML Templates] as Templates
+    }
+    
+    node "Audio System" as AudioSys {
+        component [PyAudio] as PyAudio
+        component [Altavoz] as Speaker
+    }
+    
+    node "Windows Printer API" as PrinterAPI {
+        component [win32print] as Win32
+    }
+}
+
+' ============================================
+' ARDUINO STAGE 1
+' ============================================
+node "Arduino Stage 1 (COM7)" as Stage1 {
+    component [Arduino Mega/Uno] as S1_MCU
+    component [HC-SR04\nSensor Proximidad] as S1_Sensor
+    component [Botón Físico] as S1_Button
+    component [Servo SG90\n(Danza)] as S1_SG90
+    component [Servo 360°\n(Rotación)] as S1_360
+    component [Brazo Robótico\n(Pick & Place)] as S1_Arm
+    
+    S1_Sensor --> S1_MCU
+    S1_Button --> S1_MCU
+    S1_MCU --> S1_SG90
+    S1_MCU --> S1_360
+    S1_MCU --> S1_Arm
+}
+
+' ============================================
+' ARDUINO STAGE 2
+' ============================================
+node "Arduino Stage 2 (COM4)" as Stage2 {
+    component [Arduino Nano] as S2_MCU
+    component [Bomba Succión] as S2_Pump
+    component [Válvula] as S2_Valve
+    
+    S2_MCU --> S2_Pump
+    S2_MCU --> S2_Valve
+}
+
+' ============================================
+' PERIPHERALS
+' ============================================
+node "Periféricos" as Peripherals {
+    component [Impresora Térmica\n58mm USB] as Printer
+    component [Webcam\n720p+] as Webcam
+}
+
+' ============================================
+' CLIENT
+' ============================================
+node "Cliente Web" as Client {
+    component [Navegador] as Browser
+    component [Game Canvas] as Canvas
+    component [MediaPipe Pose] as MediaPipe
+    
+    Browser --> Canvas
+    Browser --> MediaPipe
+}
+
+' ============================================
+' CONNECTIONS
+' ============================================
+
+' Python internal
+App --> Orchestrator
+App --> ArduinoAdp
+App --> ButtonAdp
+App --> AudioAdp
+App --> ServoAdp
+App --> PumpAdp
+App --> PrinterAdp
+App --> WebVizAdp
+
+' Serial connections
+ServoAdp <--> S1_MCU : Serial 9600 baud
+PumpAdp <--> S2_MCU : Serial 9600 baud
+
+' Audio
+AudioAdp --> PyAudio
+PyAudio --> Speaker
+
+' Printer
+PrinterAdp --> Win32
+Win32 --> Printer : USB RAW ESC/POS
+
+' Web
+WebVizAdp --> SocketIO
+SocketIO <--> Browser : WebSocket
+
+' Webcam
+Webcam --> Browser : MediaPipe
+
+' Bridging
+ServoAdp ..> PumpAdp : bridges commands
+PumpAdp ..> PrinterAdp : callback
+
+@enduml
+
+
+@startuml Music-IO Hardware Wiring
+!theme plain
+title Diagrama de Conexiones Físicas
+
+package "Alimentación" {
+    component [USB 5V] as USB5V
+    component [12V Externa] as Ext12V
+}
+
+package "Stage 1 - Arduino Mega/Uno (COM7)" {
+    component [VCC 5V] as S1_VCC
+    component [GND] as S1_GND
+    component [D2 - Botón] as S1_D2
+    component [D3 - SG90] as S1_D3
+    component [D5 - 360°] as S1_D5
+    component [D6 - Arm1] as S1_D6
+    component [D7 - Arm2] as S1_D7
+    component [D9 - Trigger] as S1_D9
+    component [D10 - Echo] as S1_D10
+}
+
+package "Stage 2 - Arduino Nano (COM4)" {
+    component [VCC 5V] as S2_VCC
+    component [GND] as S2_GND
+    component [D9 - Pump] as S2_D9
+    component [D10 - Valve] as S2_D10
+}
+
+package "Componentes" {
+    component [Botón] as Button
+    component [SG90] as SG90
+    component [Servo 360°] as Servo360
+    component [Arm Base] as ArmBase
+    component [Arm Joint] as ArmJoint
+    component [Trigger HC-SR04] as Trigger
+    component [Echo HC-SR04] as Echo
+    component [Motor Bomba] as PumpMotor
+    component [Solenoide Válvula] as ValveSol
+}
+
+USB5V --> S1_VCC
+USB5V --> S2_VCC
+Ext12V --> S2_D9
+
+S1_D2 --> Button
+S1_D3 --> SG90
+S1_D5 --> Servo360
+S1_D6 --> ArmBase
+S1_D7 --> ArmJoint
+S1_D9 --> Trigger
+S1_D10 --> Echo
+
+S2_D9 --> PumpMotor
+S2_D10 --> ValveSol
+
+@enduml
+
+
+@startuml Music-IO Communication Protocol
+!theme plain
+title Protocolo de Comunicación Serial
+
+package "Stage 1 (COM7) - Comandos Enviados" {
+    note as N1
+        **WIN\\n** - Iniciar secuencia victoria
+        **LOSE\\n** - Iniciar animación derrota
+        **RESET\\n** - Resetear a idle
+        **LEFT_MOTOR\\n** - Activar motor izquierdo
+        **RIGHT_MOTOR\\n** - Activar motor derecho
+        **STOP\\n** - Detener motores
+    end note
+}
+
+package "Stage 1 (COM7) - Mensajes Recibidos" {
+    note as N2
+        {"button": "pressed"}
+        {"invite": "Acércate"}
+        {"invite": ""}
+        {"action": "activate_pump"}
+        {"action": "deactivate_pump"}
+        {"status": "game_initiated"}
+        {"status": "sequence_complete"}
+    end note
+}
+
+package "Stage 2 (COM4) - Comandos Enviados" {
+    note as N3
+        **ACTIVATE_PUMP:60\\n** - Activar bomba nivel 60
+        **DEACTIVATE_PUMP\\n** - Desactivar bomba
+        **SET_SUCTION:45\\n** - Configurar succión
+        **RESET\\n** - Resetear bomba
+    end note
+}
+
+package "Stage 2 (COM4) - Mensajes Recibidos" {
+    note as N4
+        {"status": "pump_active"}
+        {"status": "pump_inactive"}
+    end note
+}
+
+@enduml

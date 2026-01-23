@@ -1,0 +1,278 @@
+@startuml Music-IO Sequence - Proximity to Sound
+!theme plain
+title 1. Flujo Principal: Detección de Proximidad → Generación de Sonido
+
+actor "Usuario" as User
+participant "HC-SR04" as Sensor
+participant "Arduino\nStage 1" as Arduino
+participant "ArduinoAdapter" as Adapter
+participant "MusicMachine\nApplication" as App
+participant "SoundOrchestrator" as Orchestrator
+participant "MusicStateMachine" as StateMachine
+participant "LocalAudioAdapter" as Audio
+participant "WebVisualizerAdapter" as Viz
+participant "Browser" as Browser
+
+User -> Sensor: Acerca la mano
+Sensor -> Arduino: Mide distancia
+Arduino -> Adapter: {"distance": 25.5}
+
+Adapter -> Adapter: _process_data()
+Adapter -> App: callback(ProximityEvent)
+
+App -> Viz: visualize_proximity(event)
+Viz -> Browser: emit('proximity_pulse', data)
+
+App -> Orchestrator: process_proximity_event(event)
+Orchestrator -> StateMachine: handle_proximity_event(event)
+
+StateMachine -> StateMachine: transition_to(LISTENING)
+StateMachine -> StateMachine: _process_proximity()
+StateMachine -> StateMachine: transition_to(PROCESSING)
+
+note over StateMachine
+  Mapeo distancia → frecuencia
+  0-10cm: 800-1200Hz
+  10-30cm: 400-800Hz
+  30-50cm: 200-400Hz
+end note
+
+StateMachine --> Orchestrator: SoundEvent(freq, duration, amplitude)
+
+Orchestrator -> Orchestrator: add_sound(event, track_id)
+Orchestrator -> Orchestrator: _cleanup_expired_tracks()
+Orchestrator --> App: List<SoundEvent>
+
+loop Para cada SoundEvent
+    App -> Viz: visualize_sound(event)
+    Viz -> Browser: emit('sound_event', data)
+    App -> Audio: play_sound(event)
+    Audio -> Audio: _generate_and_play()
+    note over Audio
+      Genera onda sinusoidal
+      Aplica fade in/out
+    end note
+end
+
+@enduml
+
+
+@startuml Music-IO Sequence - Button Game Start
+!theme plain
+title 2. Flujo de Juego: Botón → Inicio de Juego
+
+actor "Usuario" as User
+participant "Botón" as Button
+participant "Arduino\nStage 1" as Arduino
+participant "ServoAdapter" as Servo
+participant "MusicMachine\nApplication" as App
+participant "WebVisualizerAdapter" as Viz
+participant "Browser\n(Game)" as Browser
+
+User -> Button: Presiona botón
+Button -> Arduino: Señal HIGH
+Arduino -> Servo: {"button": "pressed"}
+
+Servo -> Servo: _process_serial_message()
+Servo -> App: _button_callback({'button': 'pressed'})
+
+App -> App: _handle_stage1_button()
+App -> App: _game_active = True
+App -> App: _game_score = 0
+
+App -> Viz: socketio.emit('game_start_trigger')
+Viz -> Browser: game_start_trigger event
+
+Browser -> Browser: game.gameStarted = true
+Browser -> Browser: game.startTime = Date.now()
+Browser -> Browser: Ocultar inviteText
+
+note over Browser
+  🎮 JUEGO INICIADO
+  El jugador puede moverse
+end note
+
+@enduml
+
+
+@startuml Music-IO Sequence - Win Flow
+!theme plain
+title 3. Flujo de Victoria: Score >= 300 → Secuencia Completa
+
+participant "Browser" as Browser
+participant "WebVisualizerAdapter" as Viz
+participant "MusicMachine\nApplication" as App
+participant "ServoAdapter" as Servo
+participant "Arduino\nStage 1" as Arduino1
+participant "Servos/Brazo" as Motors
+participant "PumpAdapter" as Pump
+participant "Arduino\nStage 2" as Arduino2
+participant "Bomba" as PumpHW
+participant "ThermalPrinter\nAdapter" as Printer
+participant "Impresora" as PrinterHW
+
+Browser -> Viz: emit('game_over', {score: 350})
+Viz -> App: game_over_callback({score: 350})
+
+App -> App: Verificar score >= 300
+App -> Servo: activate_motor_by_score(350)
+
+Servo -> Arduino1: "WIN\\n"
+
+note over Arduino1: Inicia secuencia WIN
+
+Arduino1 -> Motors: Danza 360° servo
+Arduino1 -> Motors: Bajar brazo
+Arduino1 -> Servo: {"action": "activate_pump"}
+
+Servo -> Pump: activate_pump()
+Pump -> Arduino2: "ACTIVATE_PUMP:60\\n"
+Arduino2 -> PumpHW: Activar succión
+
+note over PumpHW: Bomba succiona objeto
+
+Arduino1 -> Motors: Subir brazo con objeto
+Arduino1 -> Servo: {"action": "deactivate_pump"}
+
+Servo -> Pump: deactivate_pump()
+Pump -> Arduino2: "DEACTIVATE_PUMP\\n"
+Arduino2 -> PumpHW: Desactivar succión
+Arduino2 -> Pump: {"status": "pump_inactive"}
+
+Pump -> Pump: _deactivation_callback()
+Pump -> Servo: callback trigger
+
+Servo -> Printer: print_thank_you(score, poem)
+Printer -> PrinterHW: ESC/POS commands
+
+note over PrinterHW
+  🖨️ Imprime recibo
+  con puntaje y poema
+end note
+
+Arduino1 -> Servo: {"status": "sequence_complete"}
+
+@enduml
+
+
+@startuml Music-IO Sequence - Lose Flow
+!theme plain
+title 4. Flujo de Derrota: Score < 300 → Poema de Resiliencia
+
+participant "Browser" as Browser
+participant "WebVisualizerAdapter" as Viz
+participant "MusicMachine\nApplication" as App
+participant "ServoAdapter" as Servo
+participant "Arduino\nStage 1" as Arduino1
+participant "ThermalPrinter\nAdapter" as Printer
+participant "Impresora" as PrinterHW
+
+Browser -> Viz: emit('game_over', {score: 5})
+Viz -> App: game_over_callback({score: 5})
+
+App -> App: Verificar score < 300
+App -> Servo: activate_motor_by_score(5)
+
+note over Servo: Score < 10: LOSE
+
+Servo -> Servo: Obtener poema GPT
+
+alt Poema GPT disponible
+    Servo -> Servo: Mostrar poema en consola
+    Servo -> Printer: print_thank_you(score, poem)
+    Printer -> PrinterHW: ESC/POS commands
+    note over PrinterHW
+      📜 Imprime poema
+      de resiliencia
+    end note
+else Sin poema GPT
+    Servo -> Servo: Usar poema fallback
+    note over Servo
+      "Caer no es el final,
+      es solo un paso..."
+    end note
+end
+
+Servo -> Arduino1: "LOSE\\n"
+
+note over Arduino1
+  Ejecuta animación
+  de derrota
+end note
+
+@enduml
+
+
+@startuml Music-IO Sequence - Proximity Invite
+!theme plain
+title 5. Flujo de Invitación por Proximidad
+
+actor "Usuario" as User
+participant "HC-SR04" as Sensor
+participant "Arduino\nStage 1" as Arduino
+participant "ServoAdapter" as Servo
+participant "MusicMachine\nApplication" as App
+participant "WebVisualizerAdapter" as Viz
+participant "Browser" as Browser
+
+User -> Sensor: Se acerca (< 50cm)
+Sensor -> Arduino: Detecta proximidad
+Arduino -> Servo: {"invite": "Acércate a jugar"}
+
+Servo -> Servo: _process_serial_message()
+Servo -> App: _invite_callback({'invite': '...'})
+
+App -> App: _handle_proximity_invite()
+App -> Viz: socketio.emit('proximity_invite', data)
+Viz -> Browser: proximity_invite event
+
+Browser -> Browser: Mostrar inviteText
+note over Browser: 🎮 ¡Acércate a jugar! 🎮
+
+User -> Sensor: Se aleja (> 50cm)
+Sensor -> Arduino: Sin detección
+Arduino -> Servo: {"invite": ""}
+
+Servo -> App: _invite_callback({'invite': ''})
+App -> Viz: socketio.emit('proximity_invite', {invite: ''})
+Viz -> Browser: proximity_invite event
+
+Browser -> Browser: Ocultar inviteText
+
+@enduml
+
+
+@startuml Music-IO Sequence - Hand Detection
+!theme plain
+title 6. Flujo de Detección de Manos (Webcam)
+
+actor "Usuario" as User
+participant "Webcam" as Webcam
+participant "Browser" as Browser
+participant "WebVisualizerAdapter" as Viz
+participant "Game Canvas" as Game
+
+User -> Webcam: Levanta mano derecha
+Webcam -> Browser: MediaPipe detecta pose
+Browser -> Browser: Analizar landmarks
+
+alt Mano derecha levantada
+    Browser -> Viz: emit('hand_raised', {x, y})
+    Viz -> Viz: handle_hand_raised()
+    Viz -> Browser: emit('spawn_collectible', {x, y})
+    Browser -> Game: Crear coleccionable
+    note over Game: ⭐ Spawn collectible
+end
+
+User -> Webcam: Levanta mano izquierda
+Webcam -> Browser: MediaPipe detecta pose
+
+alt Mano izquierda levantada
+    Browser -> Viz: emit('hand_raised_left', {x, y})
+    Viz -> Viz: handle_hand_raised_left()
+    Viz -> Browser: emit('spawn_enemy', {x, y})
+    Browser -> Game: Crear enemigo
+    note over Game: 👾 Spawn enemy
+end
+
+@enduml

@@ -1,0 +1,402 @@
+@startuml Music-IO Class Diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+title Diagrama de Clases - Music-IO
+
+' ============================================
+' DOMAIN EVENTS (Core)
+' ============================================
+package "Core Domain - Events" #E1F5FE {
+    
+    enum EventType {
+        PROXIMITY_DETECTED
+        SOUND_TRIGGERED
+        STATE_CHANGED
+        ERROR_OCCURRED
+    }
+    
+    abstract class DomainEvent {
+        +event_type: EventType
+        +timestamp: datetime
+        +data: dict
+    }
+    
+    class ProximityEvent {
+        +distance: float
+        +sensor_id: str
+        +__init__(distance, sensor_id)
+    }
+    
+    class SoundEvent {
+        +frequency: float
+        +duration: float
+        +amplitude: float
+        +__init__(frequency, duration, amplitude)
+    }
+    
+    class StateChangeEvent {
+        +from_state: str
+        +to_state: str
+        +reason: str
+    }
+    
+    class ButtonEvent {
+        +button_state: str
+        +__init__(button_state)
+    }
+    
+    class CollectibleSpawnEvent {
+        +position_x: float
+        +position_y: float
+        +item_type: str
+        +value: int
+    }
+    
+    class CollectibleCollectedEvent {
+        +item_id: str
+        +item_type: str
+        +value: int
+        +player_score: int
+    }
+    
+    class HandGestureEvent {
+        +gesture_type: str
+        +hand_position: tuple
+        +confidence: float
+    }
+    
+    DomainEvent <|-- ProximityEvent
+    DomainEvent <|-- SoundEvent
+    DomainEvent <|-- StateChangeEvent
+    DomainEvent <|-- ButtonEvent
+    DomainEvent <|-- CollectibleSpawnEvent
+    DomainEvent <|-- CollectibleCollectedEvent
+    DomainEvent <|-- HandGestureEvent
+}
+
+' ============================================
+' STATE MACHINE (Core Domain)
+' ============================================
+package "Core Domain - State Machine" #E8F5E9 {
+    
+    enum MusicState {
+        IDLE
+        LISTENING
+        PROCESSING
+        PLAYING
+        ERROR
+    }
+    
+    class StateContext {
+        +current_state: MusicState
+        +last_proximity: float
+        +last_sound_frequency: float
+        +event_history: List<DomainEvent>
+        +metadata: dict
+    }
+    
+    class MusicStateMachine {
+        -context: StateContext
+        -_state_handlers: dict
+        -_event_listeners: List
+        +register_event_listener(listener)
+        +transition_to(new_state, reason)
+        +handle_proximity_event(proximity_event): SoundEvent
+        +get_state(): MusicState
+        +get_context(): StateContext
+        +reset()
+    }
+    
+    MusicStateMachine --> StateContext
+    MusicStateMachine --> MusicState
+}
+
+' ============================================
+' ORCHESTRATOR (Core Domain)
+' ============================================
+package "Core Domain - Orchestrator" #FFF3E0 {
+    
+    class SoundTrack {
+        +sound_event: SoundEvent
+        +start_time: datetime
+        +track_id: str
+        +priority: int
+        +source: str
+        +is_expired(): bool
+    }
+    
+    class SoundOrchestrator {
+        +max_simultaneous_sounds: int
+        +active_tracks: dict
+        +state_machines: dict
+        +master_volume: float
+        +mix_mode: str
+        +tempo_bpm: int
+        +register_event_listener(listener)
+        +register_input_source(source_id)
+        +process_proximity_event(event, source_id): List<SoundEvent>
+        +add_sound(event, track_id, priority, source): bool
+        +remove_sound(track_id)
+        +get_active_sounds(): List<SoundEvent>
+        +clear_all()
+        +set_mix_mode(mode)
+        +set_tempo(bpm)
+        +get_status(): dict
+        +apply_harmony(base_frequency): List<SoundEvent>
+        +reset()
+    }
+    
+    SoundOrchestrator --> SoundTrack
+    SoundOrchestrator --> MusicStateMachine
+    SoundOrchestrator --> SoundEvent
+}
+
+' ============================================
+' PORTS (Interfaces)
+' ============================================
+package "Ports (Interfaces)" #F3E5F5 {
+    
+    interface InputPort {
+        +start()
+        +stop()
+        +is_running(): bool
+        +register_callback(callback)
+    }
+    
+    interface SensorInputPort {
+        +get_sensor_info(): dict
+        +calibrate(): bool
+    }
+    
+    interface OutputPort {
+        +initialize(): bool
+        +play_sound(sound_event): bool
+        +stop()
+        +is_available(): bool
+        +get_output_info(): dict
+    }
+    
+    interface AudioOutputPort {
+        +set_volume(volume)
+        +get_volume(): float
+    }
+    
+    interface VisualizationOutputPort {
+        +initialize(): bool
+        +visualize_proximity(proximity_event)
+        +visualize_sound(sound_event)
+        +stop()
+        +get_output_info(): dict
+    }
+    
+    InputPort <|-- SensorInputPort
+    OutputPort <|-- AudioOutputPort
+}
+
+' ============================================
+' INPUT ADAPTERS
+' ============================================
+package "Input Adapters" #FFEBEE {
+    
+    class ArduinoAdapter {
+        +port: str
+        +baud_rate: int
+        +auto_detect: bool
+        +serial_connection: Serial
+        +sensor_id: str
+        -_running: bool
+        -_thread: Thread
+        -_callback: Callable
+        +start()
+        +stop()
+        +is_running(): bool
+        +register_callback(callback)
+        +get_sensor_info(): dict
+        +calibrate(): bool
+        +send_command(command)
+        -_find_arduino_port(): str
+        -_read_loop()
+        -_process_data(data)
+    }
+    
+    class ButtonAdapter {
+        +port: str
+        +baud_rate: int
+        +auto_detect: bool
+        +serial_connection: Serial
+        +callback: Callable
+        -_running: bool
+        -_thread: Thread
+        +start()
+        +stop()
+        +is_running(): bool
+        +register_callback(callback)
+        +get_sensor_info(): dict
+        -_read_loop()
+        -_process_line(line)
+        -_auto_detect_port(): str
+    }
+    
+    SensorInputPort <|.. ArduinoAdapter
+    InputPort <|.. ButtonAdapter
+}
+
+' ============================================
+' OUTPUT ADAPTERS
+' ============================================
+package "Output Adapters" #E0F2F1 {
+    
+    class LocalAudioAdapter {
+        +sample_rate: int
+        +channels: int
+        +pyaudio_instance: PyAudio
+        +stream: Stream
+        -_master_volume: float
+        -_initialized: bool
+        -_sound_queue: Queue
+        -_playback_thread: Thread
+        +initialize(): bool
+        +play_sound(sound_event): bool
+        +stop()
+        +is_available(): bool
+        +get_output_info(): dict
+        +set_volume(volume)
+        +get_volume(): float
+        +test_sound(frequency, duration)
+        -_playback_loop()
+        -_generate_and_play(sound_event)
+    }
+    
+    class ServoAdapter {
+        +port: str
+        +baud_rate: int
+        +serial_connection: Serial
+        +pump_adapter: PumpAdapter
+        +printer_adapter: ThermalPrinterAdapter
+        -_initialized: bool
+        -_running: bool
+        -_read_thread: Thread
+        -_button_callback: Callable
+        -_invite_callback: Callable
+        +initialize(): bool
+        +stop()
+        +set_pump_adapter(pump_adapter)
+        +set_printer_adapter(printer_adapter)
+        +register_button_callback(callback)
+        +register_invite_callback(callback)
+        +activate_left_motor()
+        +activate_right_motor()
+        +stop_motors()
+        +activate_motor_by_score(score)
+        +reset_sequence()
+        +get_output_info(): dict
+        -_read_serial()
+        -_process_serial_message(message)
+    }
+    
+    class PumpAdapter {
+        +port: str
+        +baud_rate: int
+        +suction_level: int
+        +serial_connection: Serial
+        -_initialized: bool
+        -_running: bool
+        -_deactivation_callback: Callable
+        +initialize(): bool
+        +stop()
+        +activate_pump(suction_level): bool
+        +deactivate_pump(): bool
+        +set_suction_level(level): bool
+        +register_deactivation_callback(callback)
+        +reset(): bool
+        +get_output_info(): dict
+        -_read_serial()
+    }
+    
+    class ThermalPrinterAdapter {
+        +printer_name: str
+        -_initialized: bool
+        +initialize(): bool
+        +print_thank_you(score, ascii_line, poem): bool
+        +stop()
+        +get_printer_info(): dict
+        -_find_usb_printer(): str
+    }
+    
+    class WebVisualizerAdapter {
+        +host: str
+        +port: int
+        +app: Flask
+        +socketio: SocketIO
+        -_running: bool
+        -_history: List
+        -_max_history: int
+        +game_start_callback: Callable
+        +game_over_callback: Callable
+        +initialize(): bool
+        +stop()
+        +visualize_proximity(proximity_event)
+        +visualize_sound(sound_event)
+        +register_game_callbacks(start_cb, over_cb)
+        +run()
+        +get_output_info(): dict
+        -_setup_routes()
+        -_calculate_pulse_intensity(distance): float
+    }
+    
+    AudioOutputPort <|.. LocalAudioAdapter
+    VisualizationOutputPort <|.. WebVisualizerAdapter
+}
+
+' ============================================
+' APPLICATION (Orchestration Layer)
+' ============================================
+package "Application Layer" #FCE4EC {
+    
+    class MusicMachineApplication {
+        +orchestrator: SoundOrchestrator
+        +input_adapter: InputPort
+        +output_adapter: OutputPort
+        +button_adapter: ButtonAdapter
+        +servo_adapter: ServoAdapter
+        +pump_adapter: PumpAdapter
+        +printer_adapter: ThermalPrinterAdapter
+        +visualizer: WebVisualizerAdapter
+        -_game_active: bool
+        -_game_score: int
+        -_running: bool
+        +start()
+        +stop()
+        +is_running(): bool
+        +get_status(): dict
+        +test_audio()
+        -_handle_input_event(proximity_event)
+        -_handle_domain_event(event)
+        -_handle_button_event(button_event)
+        -_handle_stage1_button(data)
+        -_handle_proximity_invite(data)
+        -_handle_game_start(data)
+        -_handle_game_over(data)
+        -_play_sound(sound_event)
+    }
+    
+    MusicMachineApplication --> SoundOrchestrator
+    MusicMachineApplication --> ArduinoAdapter
+    MusicMachineApplication --> LocalAudioAdapter
+    MusicMachineApplication --> ButtonAdapter
+    MusicMachineApplication --> ServoAdapter
+    MusicMachineApplication --> PumpAdapter
+    MusicMachineApplication --> ThermalPrinterAdapter
+    MusicMachineApplication --> WebVisualizerAdapter
+}
+
+' ============================================
+' RELATIONSHIPS
+' ============================================
+ServoAdapter --> PumpAdapter : bridges commands
+ServoAdapter --> ThermalPrinterAdapter : triggers print
+PumpAdapter ..> ThermalPrinterAdapter : callback on deactivation
+
+@enduml

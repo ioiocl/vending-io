@@ -1,0 +1,158 @@
+@startuml Music-IO Component Diagram
+!theme plain
+skinparam componentStyle rectangle
+
+title Diagrama de Componentes - Music-IO (Arquitectura Hexagonal)
+
+' ============================================
+' EXTERNAL ACTORS
+' ============================================
+actor "Usuario" as User
+actor "Administrador" as Admin
+
+cloud "Navegador Web" as Browser
+
+' ============================================
+' HARDWARE
+' ============================================
+node "Arduino Stage 1 (COM7)" as Stage1 {
+    component [HC-SR04\nSensor Proximidad] as Sensor
+    component [Botón Físico] as Button
+    component [Servo SG90] as SG90
+    component [Servo 360°] as Servo360
+    component [Brazo Robótico] as Arm
+}
+
+node "Arduino Stage 2 (COM4)" as Stage2 {
+    component [Bomba Succión] as Pump
+    component [Válvula] as Valve
+}
+
+node "Periféricos" as Peripherals {
+    component [Impresora Térmica\nUSB] as Printer
+    component [Altavoz] as Speaker
+    component [Webcam] as Webcam
+}
+
+' ============================================
+' APPLICATION
+' ============================================
+package "Music-IO Application" {
+    
+    ' Core Domain
+    package "Core Domain" #E1F5FE {
+        component [SoundOrchestrator] as Orchestrator
+        component [MusicStateMachine] as StateMachine
+        component [Domain Events] as Events
+        
+        Orchestrator --> StateMachine
+        StateMachine --> Events
+    }
+    
+    ' Ports
+    package "Ports (Interfaces)" #F3E5F5 {
+        interface "InputPort" as IInput
+        interface "SensorInputPort" as ISensor
+        interface "OutputPort" as IOutput
+        interface "AudioOutputPort" as IAudio
+        interface "VisualizationOutputPort" as IViz
+        
+        IInput <|-- ISensor
+        IOutput <|-- IAudio
+    }
+    
+    ' Input Adapters
+    package "Input Adapters" #FFEBEE {
+        component [ArduinoAdapter] as ArduinoAdapter
+        component [ButtonAdapter] as ButtonAdapter
+        component [WebcamAdapter] as WebcamAdapter
+        
+        ArduinoAdapter ..|> ISensor
+        ButtonAdapter ..|> IInput
+    }
+    
+    ' Output Adapters
+    package "Output Adapters" #E0F2F1 {
+        component [LocalAudioAdapter] as AudioAdapter
+        component [ServoAdapter] as ServoAdapter
+        component [PumpAdapter] as PumpAdapter
+        component [ThermalPrinterAdapter] as PrinterAdapter
+        component [WebVisualizerAdapter] as WebViz
+        
+        AudioAdapter ..|> IAudio
+        WebViz ..|> IViz
+    }
+    
+    ' Application Layer
+    package "Application Layer" #FCE4EC {
+        component [MusicMachineApplication] as App
+    }
+    
+    ' Web Server
+    package "Web Server" #FFF3E0 {
+        component [Flask] as Flask
+        component [Socket.IO] as SocketIO
+        component [HTML Templates] as Templates
+        
+        Flask --> SocketIO
+        Flask --> Templates
+    }
+}
+
+' ============================================
+' CONNECTIONS
+' ============================================
+
+' User interactions
+User --> Sensor : acerca mano
+User --> Button : presiona
+User --> Browser : interactúa
+
+' Hardware to Adapters
+Sensor --> ArduinoAdapter : Serial JSON
+Button --> ButtonAdapter : Serial JSON
+Webcam --> WebcamAdapter : MediaPipe
+
+' Adapters to Core
+ArduinoAdapter --> Orchestrator : ProximityEvent
+ButtonAdapter --> App : ButtonEvent
+
+' Core to Output
+Orchestrator --> AudioAdapter : SoundEvent
+App --> ServoAdapter : WIN/LOSE
+ServoAdapter --> PumpAdapter : activate_pump
+
+' Output to Hardware
+AudioAdapter --> Speaker : PCM Audio
+ServoAdapter --> Stage1 : Serial 9600
+PumpAdapter --> Stage2 : Serial 9600
+PrinterAdapter --> Printer : ESC/POS
+
+' Stage 1 internal
+Stage1 --> SG90
+Stage1 --> Servo360
+Stage1 --> Arm
+
+' Stage 2 internal
+Stage2 --> Pump
+Stage2 --> Valve
+
+' Web connections
+WebViz --> Flask
+SocketIO <--> Browser : WebSocket
+
+' App orchestration
+App --> Orchestrator
+App --> ArduinoAdapter
+App --> ButtonAdapter
+App --> AudioAdapter
+App --> ServoAdapter
+App --> PumpAdapter
+App --> PrinterAdapter
+App --> WebViz
+
+' Bridging
+ServoAdapter ..> PumpAdapter : bridges
+PumpAdapter ..> PrinterAdapter : callback
+
+@enduml
